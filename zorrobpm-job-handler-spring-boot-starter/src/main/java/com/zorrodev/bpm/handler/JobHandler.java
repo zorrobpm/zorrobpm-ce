@@ -1,7 +1,7 @@
 package com.zorrodev.bpm.handler;
 
-import com.zorrodev.bpm.contract.job.JobDetailModel;
-import com.zorrodev.bpm.contract.model.ProcessVariable;
+import com.zorrodev.bpm.exchange.JobDetailModel;
+import com.zorrodev.bpm.exchange.ProcessVariable;
 
 import java.util.List;
 

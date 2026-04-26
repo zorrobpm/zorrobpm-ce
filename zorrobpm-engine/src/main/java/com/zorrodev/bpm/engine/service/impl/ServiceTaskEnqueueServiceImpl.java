@@ -7,8 +7,9 @@ import com.zorrodev.bpm.engine.dto.Activity;
 import com.zorrodev.bpm.engine.service.BpmnService;
 import com.zorrodev.bpm.engine.service.DBService;
 import com.zorrodev.bpm.engine.service.ServiceTaskEnqueueService;
-import com.zorrodev.bpm.event.data.Variable;
-import com.zorrodev.bpm.event.inner.ServiceTaskEnqueued;
+import com.zorrodev.bpm.exchange.JobDetailModel;
+import com.zorrodev.bpm.exchange.ProcessVariable;
+import com.zorrodev.bpm.exchange.ServiceTaskEnqueued;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Profile;
@@ -16,8 +17,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Profile("!test")
 @Service
@@ -43,23 +45,24 @@ public class ServiceTaskEnqueueServiceImpl implements ServiceTaskEnqueueService 
                 BpmnElementModel element = bpmn.getElement(bpmnElementId);
                 String job = element.getExtensions().getServiceTaskExtension().getJob();
 
-                List<Variable> variables = dbService.getVariables(processInstanceId).stream()
-                    .map(pv -> {
-                        Variable v = new Variable();
+                Map<String, ProcessVariable> variables = dbService.getVariables(processInstanceId).stream()
+                    .collect(Collectors.toMap(com.zorrodev.bpm.contract.model.ProcessVariable::getName, pv -> {
+                        ProcessVariable v = new ProcessVariable();
                         v.setName(pv.getName());
                         v.setValue(pv.getValue());
                         v.setType(pv.getType().toString());
                         return v;
-                    })
-                    .toList();
+                    }));
 
-                ServiceTaskEnqueued serviceTaskEnqueued = new ServiceTaskEnqueued();
-                serviceTaskEnqueued.setJob(job);
-                serviceTaskEnqueued.setServiceTaskId(serviceTaskId);
-                serviceTaskEnqueued.setProcessDefinitionId(processDefinitionId);
-                serviceTaskEnqueued.setProcessInstanceId(processInstanceId);
-                serviceTaskEnqueued.setVariables(variables);
-                publisher.publishEvent(serviceTaskEnqueued);
+                JobDetailModel detail = new JobDetailModel();
+                detail.setServiceTaskId(serviceTaskId);
+                detail.setProcessDefinitionId(processDefinitionId);
+                detail.setProcessInstanceId(processInstanceId);
+                detail.setServiceTaskKey(bpmnElementId);
+                detail.setJob(job);
+                detail.setVariables(variables);
+
+                publisher.publishEvent(new ServiceTaskEnqueued(detail));
             }
         });
     }

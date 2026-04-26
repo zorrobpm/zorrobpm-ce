@@ -45,12 +45,6 @@
             <artifactId>lombok</artifactId>
             <optional>true</optional>
         </dependency>
-
-        <dependency>
-            <groupId>com.zorrodev.bpm</groupId>
-            <artifactId>zorrobpm-contract</artifactId>
-            <version>0.7.3-SNAPSHOT</version>
-        </dependency>
     </dependencies>
 
     <distributionManagement>

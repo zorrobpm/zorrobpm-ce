@@ -1,6 +1,5 @@
-package com.zorrodev.bpm.contract.job;
+package com.zorrodev.bpm.exchange;
 
-import com.zorrodev.bpm.contract.model.ProcessVariable;
 import lombok.Getter;
 import lombok.Setter;
 

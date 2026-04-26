@@ -1,10 +1,8 @@
 package com.zorrodev.bpm.handler.boot;
 
-import com.zorrodev.bpm.contract.job.JobDetailModel;
-import com.zorrodev.bpm.contract.model.ProcessVariable;
-import com.zorrodev.bpm.contract.model.ProcessVariableType;
+import com.zorrodev.bpm.exchange.JobDetailModel;
+import com.zorrodev.bpm.exchange.ProcessVariable;
 import com.zorrodev.bpm.exchange.ServiceTaskCompleteData;
-import com.zorrodev.bpm.exchange.ServiceTaskData;
 import com.zorrodev.bpm.handler.JobHandler;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -19,7 +17,6 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Configuration
@@ -43,23 +40,10 @@ public class HandlerAutoConfiguration {
             log.info("Subscribing to {}", queueName);
             container.setMessageListener(message -> {
                 ObjectMapper mapper = new ObjectMapper();
-                ServiceTaskData data = mapper.readValue(message.getBody(), ServiceTaskData.class);
-                JobDetailModel model = new JobDetailModel();
-                model.setServiceTaskId(data.getServiceTaskId());
-                model.setProcessDefinitionId(data.getProcessDefinitionId());
-                model.setProcessInstanceId(data.getProcessInstanceId());
-                Map<String, ProcessVariable> vars = data.getVariables().stream().collect(Collectors.toMap(com.zorrodev.bpm.exchange.ProcessVariable::getName, p -> {
-                    ProcessVariable var = new ProcessVariable();
-                    var.setName(p.getName());
-                    var.setValue(p.getValue());
-                    var.setType(ProcessVariableType.valueOf(p.getType()));
-                    return var;
-                }));
-                model.setJob(data.getJob());
-                model.setVariables(vars);
+                JobDetailModel model = mapper.readValue(message.getBody(), JobDetailModel.class);
 
-                List<com.zorrodev.bpm.exchange.ProcessVariable> result = handler.handleJob(model).stream().map(x -> {
-                    var v = new com.zorrodev.bpm.exchange.ProcessVariable();
+                List<ProcessVariable> result = handler.handleJob(model).stream().map(x -> {
+                    ProcessVariable v = new ProcessVariable();
                     v.setName(x.getName());
                     v.setValue(x.getValue());
                     v.setType(x.getType().toString());
@@ -67,7 +51,7 @@ public class HandlerAutoConfiguration {
                 }).toList();
 
                 ServiceTaskCompleteData completeData = new ServiceTaskCompleteData();
-                completeData.setServiceTaskId(data.getServiceTaskId());
+                completeData.setServiceTaskId(model.getServiceTaskId());
                 completeData.setStatus("SUCCESS");
                 completeData.setVariables(result);
                 rabbitTemplate.setMessageConverter(new JacksonJsonMessageConverter());

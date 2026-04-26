@@ -1,6 +1,5 @@
-package com.zorrodev.bpm.event.inner;
+package com.zorrodev.bpm.exchange;
 
-import com.zorrodev.bpm.event.data.Variable;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -11,5 +10,5 @@ import java.util.UUID;
 @Setter
 public class ServiceTaskCompleted {
     private UUID serviceTaskId;
-    private List<Variable> variables;
+    private List<ProcessVariable> variables;
 }

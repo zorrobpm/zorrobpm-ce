@@ -3,7 +3,7 @@ package com.zorrodev.bpm.engine.listener;
 import com.zorrodev.bpm.contract.model.ProcessVariable;
 import com.zorrodev.bpm.contract.model.ProcessVariableType;
 import com.zorrodev.bpm.engine.service.RuntimeService;
-import com.zorrodev.bpm.event.inner.ServiceTaskCompleted;
+import com.zorrodev.bpm.exchange.ServiceTaskCompleted;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;

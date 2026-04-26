@@ -90,6 +90,12 @@
             <artifactId>h2</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.zorrodev.bpm</groupId>
+            <artifactId>zorrobpm-exchange</artifactId>
+            <version>0.7.3-SNAPSHOT</version>
+            <scope>compile</scope>
+        </dependency>
 
     </dependencies>
 
