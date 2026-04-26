@@ -37,9 +37,9 @@
     </build>
 
     <scm>
-        <connection>scm:git:https://gitlab.1repo.com/zorrobpm/zorrobpm.git</connection>
-        <developerConnection>scm:git:https://gitlab.1repo.com/zorrobpm/zorrobpm.git</developerConnection>
-        <url>https://gitlab.1repo.com/zorrobpm/zorrobpm.git</url>
+        <connection>scm:git:https://github.com/zorrobpm/zorrobpm-ce.git</connection>
+        <developerConnection>scm:git:https://github.com/zorrobpm/zorrobpm-ce.git</developerConnection>
+        <url>https://github.com/zorrobpm/zorrobpm-ce.git</url>
         <tag>v0.6.17</tag>
     </scm>
 
