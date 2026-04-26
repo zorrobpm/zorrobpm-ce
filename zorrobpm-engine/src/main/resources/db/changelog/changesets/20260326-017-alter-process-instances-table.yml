@@ -1,0 +1,16 @@
+databaseChangeLog:
+  - logicalFilePath: 20260326-017
+  - changeSet:
+      id: 20260326-017
+      author: zorrodev
+      changes:
+        - addColumn:
+            tableName: process_instances
+            columns:
+              - column:
+                  name: parent_activity_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_process_instances__parent_activity_id
+                    referencedTableName: activities
+                    referencedColumnNames: id

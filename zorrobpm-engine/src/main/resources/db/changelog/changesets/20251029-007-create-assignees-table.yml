@@ -1,0 +1,26 @@
+databaseChangeLog:
+  - logicalFilePath: 20251029-007
+  - changeSet:
+      id: 20251029-007
+      author: zorrodev
+      changes:
+        - createTable:
+            tableName: assignees
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_assignees
+              - column:
+                  name: task_id
+                  type: uuid
+              - column:
+                  name: process_instance_id
+                  type: uuid
+              - column:
+                  name: created_at
+                  type: datetime with timezone
+                  constraints:
+                    nullable: false

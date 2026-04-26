@@ -1,0 +1,12 @@
+databaseChangeLog:
+  - logicalFilePath: 20260212-011
+  - changeSet:
+      id: 20260212-011
+      author: zorrodev
+      changes:
+        - addColumn:
+            tableName: user_tasks
+            columns:
+              - column:
+                  name: form_key
+                  type: varchar(255)

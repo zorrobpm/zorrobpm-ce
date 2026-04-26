@@ -1,0 +1,31 @@
+databaseChangeLog:
+  - logicalFilePath: 20250722-002
+  - changeSet:
+      id: 20250722-002
+      author: zorrodev
+      changes:
+        - createTable:
+            tableName: process_instances
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_process_instances
+              - column:
+                  name: process_definition_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_process_instances__process_definition_id
+                    referencedTableName: process_definitions
+                    referencedColumnNames: id
+              - column:
+                  name: started_at
+                  type: datetime with timezone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: completed_at
+                  type: datetime with timezone

@@ -1,0 +1,47 @@
+databaseChangeLog:
+  - logicalFilePath: 20260316-013
+  - changeSet:
+      id: 20260316-013
+      author: zorrodev
+      changes:
+        - createTable:
+            tableName: activities
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_activities
+              - column:
+                  name: process_instance_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_activities__process_instance_id
+                    referencedTableName: process_instances
+                    referencedColumnNames: id
+              - column:
+                  name: token
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: bpmn_element_id
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: datetime with timezone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: completed_at
+                  type: datetime with timezone
+              - column:
+                  name: type
+                  type: varchar(255)
+              - column:
+                  name: status
+                  type: varchar(255)

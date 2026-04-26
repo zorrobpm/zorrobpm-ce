@@ -1,0 +1,12 @@
+databaseChangeLog:
+  - logicalFilePath: 20251010-006
+  - changeSet:
+      id: 20251010-006
+      author: zorrodev
+      changes:
+        - addColumn:
+            tableName: process_definitions
+            columns:
+              - column:
+                  name: start_form_key
+                  type: varchar(255)

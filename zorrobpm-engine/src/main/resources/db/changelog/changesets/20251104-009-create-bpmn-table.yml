@@ -1,0 +1,20 @@
+databaseChangeLog:
+  - logicalFilePath: 20251104-009
+  - changeSet:
+      id: 20251104-009
+      author: zorrodev
+      changes:
+        - createTable:
+            tableName: bpmn
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_bpmn
+              - column:
+                  name: bpmn
+                  type: text
+                  constraints:
+                    nullable: false

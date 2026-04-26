@@ -1,0 +1,10 @@
+databaseChangeLog:
+  - logicalFilePath: 20251104-008
+  - changeSet:
+      id: 20251104-008
+      author: zorrodev
+      changes:
+        - renameColumn:
+            tableName: process_definitions
+            oldColumnName: code
+            newColumnName: key

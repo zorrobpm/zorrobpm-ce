@@ -1,0 +1,22 @@
+databaseChangeLog:
+  - logicalFilePath: 20260317-014
+  - changeSet:
+      id: 20260317-014
+      author: zorrodev
+      changes:
+        - createTable:
+            tableName: tokens
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_tokens
+              - column:
+                  name: parent_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_tokens__parent_id
+                    referencedTableName: tokens
+                    referencedColumnNames: id

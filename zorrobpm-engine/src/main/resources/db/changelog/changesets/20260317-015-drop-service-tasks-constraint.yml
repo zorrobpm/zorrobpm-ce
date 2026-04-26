@@ -1,0 +1,9 @@
+databaseChangeLog:
+  - logicalFilePath: 20260317-015
+  - changeSet:
+      id: 20260317-015
+      author: zorrodev
+      changes:
+        - dropNotNullConstraint:
+            tableName: service_tasks
+            columnName: process_definition_id

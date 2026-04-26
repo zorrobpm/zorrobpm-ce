@@ -1,0 +1,9 @@
+package com.zorrodev.bpm.engine.repository;
+
+import com.zorrodev.bpm.engine.entity.TokenEntity;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.UUID;
+
+public interface TokenRepository extends JpaRepository<TokenEntity, UUID> {
+}

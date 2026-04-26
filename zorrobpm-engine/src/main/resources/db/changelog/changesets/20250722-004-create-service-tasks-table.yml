@@ -1,0 +1,44 @@
+databaseChangeLog:
+  - logicalFilePath: 20250722-004
+  - changeSet:
+      id: 20250722-004
+      author: zorrodev
+      changes:
+        - createTable:
+            tableName: service_tasks
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_service_tasks
+              - column:
+                  name: process_instance_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_service_tasks__process_instance_id
+                    referencedTableName: process_instances
+                    referencedColumnNames: id
+              - column:
+                  name: process_definition_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_service_tasks__process_definition_id
+                    referencedTableName: process_definitions
+                    referencedColumnNames: id
+              - column:
+                  name: bpmn_element_id
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: datetime with timezone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: completed_at
+                  type: datetime with timezone

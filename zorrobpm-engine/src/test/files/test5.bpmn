@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_10dgsfk" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.40.1" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
+  <bpmn:process id="test5" name="test5" isExecutable="true">
+    <bpmn:startEvent id="startEvent" name="startEvent">
+      <bpmn:outgoing>flow1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="xor1">
+      <bpmn:incoming>flow1</bpmn:incoming>
+      <bpmn:outgoing>flow2</bpmn:outgoing>
+      <bpmn:outgoing>flow3</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="flow1" name="flow1" sourceRef="startEvent" targetRef="xor1" />
+    <bpmn:exclusiveGateway id="xor2">
+      <bpmn:incoming>flow2</bpmn:incoming>
+      <bpmn:incoming>flow3</bpmn:incoming>
+      <bpmn:outgoing>flow4</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="flow2" name="flow2 - x is 1" sourceRef="xor1" targetRef="xor2">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=x = 1</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow3" name="flow3 - x is 2" sourceRef="xor1" targetRef="xor2">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=x = 2</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:endEvent id="endEvent" name="endEvent">
+      <bpmn:incoming>flow4</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow4" name="flow4" sourceRef="xor2" targetRef="endEvent" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="test5">
+      <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="startEvent">
+        <dc:Bounds x="142" y="162" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="134.5" y="205" width="51" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_0x4uoc2_di" bpmnElement="xor1" isMarkerVisible="true">
+        <dc:Bounds x="285" y="155" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_11j8ucl_di" bpmnElement="xor2" isMarkerVisible="true">
+        <dc:Bounds x="525" y="155" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1v1ddyi_di" bpmnElement="endEvent">
+        <dc:Bounds x="682" y="162" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="676" y="205" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_0o3jaf9_di" bpmnElement="flow1">
+        <di:waypoint x="178" y="180" />
+        <di:waypoint x="285" y="180" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="219" y="162" width="25" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_18kqrxp_di" bpmnElement="flow2">
+        <di:waypoint x="310" y="155" />
+        <di:waypoint x="310" y="80" />
+        <di:waypoint x="550" y="80" />
+        <di:waypoint x="550" y="155" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="401" y="62" width="61" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1khq01l_di" bpmnElement="flow3">
+        <di:waypoint x="310" y="205" />
+        <di:waypoint x="310" y="290" />
+        <di:waypoint x="550" y="290" />
+        <di:waypoint x="550" y="205" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="400" y="272" width="61" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1jnoegv_di" bpmnElement="flow4">
+        <di:waypoint x="575" y="180" />
+        <di:waypoint x="682" y="180" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="616" y="162" width="26" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

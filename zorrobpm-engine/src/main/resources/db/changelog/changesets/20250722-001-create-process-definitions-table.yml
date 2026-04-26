@@ -1,0 +1,39 @@
+databaseChangeLog:
+  - logicalFilePath: 20250722-001
+  - changeSet:
+      id: 20250722-001
+      author: zorrodev
+      changes:
+        - createTable:
+            tableName: process_definitions
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_process_definitions
+              - column:
+                  name: code
+                  type: varchar(255)
+              - column:
+                  name: version
+                  type: integer
+              - column:
+                  name: name
+                  type: text
+              - column:
+                  name: sha256
+                  type: varchar(255)
+                  constraints:
+                    uniqueConstraintName: uk_process_definitions__sha256
+                    unique: true
+              - column:
+                  name: created_at
+                  type: datetime with timezone
+                  constraints:
+                    nullable: false
+        - addUniqueConstraint:
+            constraintName: uk_process_definitions__code_version
+            tableName: process_definitions
+            columnNames: code, version

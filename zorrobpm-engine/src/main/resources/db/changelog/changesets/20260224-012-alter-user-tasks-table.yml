@@ -1,0 +1,14 @@
+databaseChangeLog:
+  - logicalFilePath: 20260224-012
+  - changeSet:
+      id: 20260224-012
+      author: zorrodev
+      changes:
+        - addColumn:
+            tableName: user_tasks
+            columns:
+              - column:
+                  name: assignee
+                  type: varchar(255)
+        - dropTable:
+            tableName: assignees

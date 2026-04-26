@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.zorrodev.bpm</groupId>
+    <artifactId>zorrobpm</artifactId>
+    <version>0.7.3-SNAPSHOT</version>
+    <packaging>pom</packaging>
+
+    <url>https://zorrobpm.dev</url>
+
+    <modules>
+        <module>zorrobpm-contract</module>
+        <module>zorrobpm-event</module>
+        <module>zorrobpm-client</module>
+        <module>zorrobpm-engine</module>
+        <module>zorrobpm-rest</module>
+        <module>zorrobpm-job-handler-spring-boot-starter</module>
+        <module>zorrobpm-test</module>
+        <module>zorrobpm-exchange</module>
+        <module>zorrobpm-rabbitmq</module>
+        <module>zorrobpm-ce</module>
+    </modules>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-release-plugin</artifactId>
+                <configuration>
+                    <tagNameFormat>v@{project.version}</tagNameFormat>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <scm>
+        <connection>scm:git:https://gitlab.1repo.com/zorrobpm/zorrobpm.git</connection>
+        <developerConnection>scm:git:https://gitlab.1repo.com/zorrobpm/zorrobpm.git</developerConnection>
+        <url>https://gitlab.1repo.com/zorrobpm/zorrobpm.git</url>
+        <tag>v0.6.17</tag>
+    </scm>
+
+    <distributionManagement>
+        <repository>
+            <id>maven.1repo.com</id>
+            <url>https://maven.1repo.com/1repo/releases</url>
+        </repository>
+        <snapshotRepository>
+            <id>maven.1repo.com</id>
+            <url>https://maven.1repo.com/1repo/snapshots</url>
+        </snapshotRepository>
+    </distributionManagement>
+
+</project>

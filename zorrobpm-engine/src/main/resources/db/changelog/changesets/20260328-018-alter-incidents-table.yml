@@ -1,0 +1,35 @@
+databaseChangeLog:
+  - logicalFilePath: 20260328-018
+  - changeSet:
+      id: 20260328-018
+      author: zorrodev
+      changes:
+        - addColumn:
+            tableName: incidents
+            columns:
+              - column:
+                  name: activity_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_incidents__activity_id
+                    referencedTableName: activities
+                    referencedColumnNames: id
+        - dropColumn:
+            tableName: incidents
+            columns:
+              - column:
+                  name: process_instance_id
+        - dropColumn:
+            tableName: incidents
+            columns:
+              - column:
+                  name: process_definition_id
+        - dropColumn:
+            tableName: incidents
+            columns:
+              - column:
+                  name: bpmn_element_id
+        - renameColumn:
+            tableName: incidents
+            oldColumnName: description
+            newColumnName: message

@@ -1,0 +1,47 @@
+databaseChangeLog:
+  - logicalFilePath: 20260208-010
+  - changeSet:
+      id: 20260208-010
+      author: zorrodev
+      changes:
+        - createTable:
+            tableName: incidents
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_incidents
+              - column:
+                  name: process_instance_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_incidents__process_instance_id
+                    referencedTableName: process_instances
+                    referencedColumnNames: id
+              - column:
+                  name: process_definition_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_incidents__process_definition_id
+                    referencedTableName: process_definitions
+                    referencedColumnNames: id
+              - column:
+                  name: bpmn_element_id
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: description
+                  type: text
+              - column:
+                  name: created_at
+                  type: datetime with timezone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: completed_at
+                  type: datetime with timezone

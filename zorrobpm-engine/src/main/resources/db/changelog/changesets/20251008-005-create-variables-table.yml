@@ -1,0 +1,37 @@
+databaseChangeLog:
+  - logicalFilePath: 20251008-005
+  - changeSet:
+      id: 20251008-005
+      author: zorrodev
+      changes:
+        - createTable:
+            tableName: variables
+            columns:
+              - column:
+                  name: process_instance_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_variables__process_instance_id
+                    referencedTableName: process_instances
+                    referencedColumnNames: id
+                    primaryKey: true
+                    primaryKeyName: pk_variables
+              - column:
+                  name: name
+                  type: varchar(255)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+                    primaryKeyName: pk_variables
+              - column:
+                  name: text_value
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: type
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+
