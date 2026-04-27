@@ -1,0 +1,11 @@
+src/
+*.iml
+.idea/
+.mvn/
+target/maven-archiver/
+target/maven-status/
+target/classes/
+target/generated-sources/
+target/test-classes/
+target/site/
+target/*.jar.original
