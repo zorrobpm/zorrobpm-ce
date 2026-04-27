@@ -121,7 +121,6 @@ public class DBServiceImpl implements DBService {
         ActivityEntity activity = activityRepository.findById(activityId).orElseThrow();
         ServiceTaskEntity entity = new ServiceTaskEntity();
         entity.setId(activity.getId());
-        entity.setProcessDefinitionId(entity.getProcessDefinitionId());
         entity.setBpmnElementId(activity.getBpmnElementId());
         entity.setProcessInstanceId(activity.getProcessInstanceId());
         entity.setCreatedAt(activity.getCreatedAt());
@@ -137,7 +136,6 @@ public class DBServiceImpl implements DBService {
         ActivityEntity activity = activityRepository.findById(activityId).orElseThrow();
         UserTaskEntity entity = new UserTaskEntity();
         entity.setId(activity.getId());
-        entity.setProcessDefinitionId(entity.getProcessDefinitionId());
         entity.setBpmnElementId(activity.getBpmnElementId());
         entity.setProcessInstanceId(activity.getProcessInstanceId());
         entity.setCreatedAt(activity.getCreatedAt());

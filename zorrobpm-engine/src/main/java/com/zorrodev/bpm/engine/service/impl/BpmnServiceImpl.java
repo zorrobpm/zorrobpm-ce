@@ -8,15 +8,15 @@ import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import org.springframework.stereotype.Service;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 @RequiredArgsConstructor
 public class BpmnServiceImpl implements BpmnService {
 
-    private final Map<UUID, BpmnProcessDefinitionModel> models = new HashMap<>();
+    private final Map<UUID, BpmnProcessDefinitionModel> models = new ConcurrentHashMap<>();
 
     private final FileService fileService;
     private final BpmnParseService bpmnParseService;

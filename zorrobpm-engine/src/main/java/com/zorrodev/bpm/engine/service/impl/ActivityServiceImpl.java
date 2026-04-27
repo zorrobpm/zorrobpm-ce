@@ -285,11 +285,16 @@ public class ActivityServiceImpl implements ActivityService {
         UUID flowActivityId = null;
 
         if (processExpression) {
-            String expression = Optional.ofNullable(flow).map(BpmnFlowModel::getConditionExpression).map(BpmnConditionExpressionModel::getExpression).map(str -> str.substring(1)).orElse(null);
+            String expression = Optional.ofNullable(flow)
+                .map(BpmnFlowModel::getConditionExpression)
+                .map(BpmnConditionExpressionModel::getExpression)
+                .filter(str -> !str.isEmpty())
+                .map(str -> str.substring(1))
+                .orElse(null);
             if (!(Objects.isNull(expression) && defaultFlow)) {
                 List<ProcessVariable> variables = dbService.getVariables(processInstanceId);
                 Boolean test = (Boolean) scriptService.evaluateScript(expression, variables);
-                if (test) {
+                if (Boolean.TRUE.equals(test)) {
                     flowActivityId = dbService.createActivity(processInstanceId, tokenId, flow);
                 }
             }

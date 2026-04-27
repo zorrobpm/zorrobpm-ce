@@ -13,7 +13,7 @@ public class IncidentMapper {
         pi.setActivityId(entity.getActivityId());
         pi.setMessage(entity.getMessage());
         pi.setCompletedAt(entity.getCompletedAt());
-        pi.setCompletedAt(entity.getCreatedAt());
+        pi.setCreatedAt(entity.getCreatedAt());
         return pi;
     }
 

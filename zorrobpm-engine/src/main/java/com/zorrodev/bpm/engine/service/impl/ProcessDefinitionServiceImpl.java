@@ -38,6 +38,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ProcessDefinitionServiceImpl implements ProcessDefinitionService {
 
+    private static final Object VERSION_LOCK = new Object();
+
     private final ProcessDefinitionRepository processDefinitionRepository;
     private final BpmnService bpmnService;
     private final BpmnParseService bpmnParseService;
@@ -55,7 +57,7 @@ public class ProcessDefinitionServiceImpl implements ProcessDefinitionService {
     @SneakyThrows
     @Override
     public ProcessDefinition addProcessDefinition(String bpmn) {
-        MessageDigest digest = MessageDigest.getInstance("sha256");
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
         String sha256 = Base64.getEncoder().encodeToString(digest.digest(bpmn.getBytes(StandardCharsets.UTF_8)));
 
         BpmnProcessDefinitionModel model = bpmnParseService.parse(bpmn);
@@ -69,24 +71,26 @@ public class ProcessDefinitionServiceImpl implements ProcessDefinitionService {
         if (processDefinitionEntityOptional.isEmpty()) {
             UUID id = UUID.randomUUID();
 
-            Integer maxVersion = processDefinitionRepository.findMaxByKey(key).orElse(0);
-            processDefinitionEntity = new ProcessDefinitionEntity();
-            processDefinitionEntity.setId(id);
-            processDefinitionEntity.setKey(key);
-            processDefinitionEntity.setName(name);
-            processDefinitionEntity.setVersion(maxVersion + 1);
-            processDefinitionEntity.setSha256(sha256);
-            processDefinitionEntity.setCreatedAt(Instant.now());
-            processDefinitionEntity.setStartFormKey(model.getStartFormKey());
-            processDefinitionEntity = processDefinitionRepository.save(processDefinitionEntity);
+            synchronized (VERSION_LOCK) {
+                Integer maxVersion = processDefinitionRepository.findMaxByKey(key).orElse(0);
+                processDefinitionEntity = new ProcessDefinitionEntity();
+                processDefinitionEntity.setId(id);
+                processDefinitionEntity.setKey(key);
+                processDefinitionEntity.setName(name);
+                processDefinitionEntity.setVersion(maxVersion + 1);
+                processDefinitionEntity.setSha256(sha256);
+                processDefinitionEntity.setCreatedAt(Instant.now());
+                processDefinitionEntity.setStartFormKey(model.getStartFormKey());
+                processDefinitionEntity = processDefinitionRepository.save(processDefinitionEntity);
+            }
 
             bpmnService.addProcessDefinition(id, model);
             fileService.saveFile(id, bpmn);
+
+            publishProcessDefinitionCreatedEvent(processDefinitionEntity, model, bpmn);
         } else {
             processDefinitionEntity = processDefinitionEntityOptional.get();
         }
-
-        publishProcessDefinitionCreatedEvent(processDefinitionEntity, model, bpmn);
 
         return fromEntity(processDefinitionEntity);
     }

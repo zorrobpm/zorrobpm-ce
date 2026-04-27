@@ -33,6 +33,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -112,7 +113,7 @@ class ProcessDefinitionServiceImplTest {
     }
 
     @Test
-    void addProcessDefinition_existingSha_doesNotResaveButPublishes() throws IOException {
+    void addProcessDefinition_existingSha_doesNotResaveAndDoesNotPublish() throws IOException {
         String bpmn = Files.readString(Path.of("src/test/files/test1.bpmn"));
         UUID existingId = UUID.randomUUID();
         ProcessDefinitionEntity existing = entity(existingId, "test1", 5);
@@ -125,7 +126,7 @@ class ProcessDefinitionServiceImplTest {
         verify(processDefinitionRepository, never()).save(any());
         verify(bpmnService, never()).addProcessDefinition(any(), any());
         verify(fileService, never()).saveFile(any(), any());
-        verify(publisher).publishEvent(any(ProcessDefinitionCreatedEvent.class));
+        verifyNoInteractions(publisher);
 
         assertThat(result.getId()).isEqualTo(existingId);
         assertThat(result.getVersion()).isEqualTo(5);
