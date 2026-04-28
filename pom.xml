@@ -13,7 +13,7 @@
 
     <groupId>com.zorrodev.bpm</groupId>
     <artifactId>zorrobpm</artifactId>
-    <version>0.7.4</version>
+    <version>0.7.5-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>ZorroBPM</name>
