@@ -11,7 +11,7 @@
 
     <groupId>com.zorrodev.bpm</groupId>
     <artifactId>zorrobpm-ce</artifactId>
-    <version>0.7.10-SNAPSHOT</version>
+    <version>0.7.10</version>
 
     <properties>
         <java.version>17</java.version>
@@ -32,19 +32,19 @@
         <dependency>
             <groupId>com.zorrodev.bpm</groupId>
             <artifactId>zorrobpm-engine</artifactId>
-            <version>0.7.10-SNAPSHOT</version>
+            <version>0.7.10</version>
         </dependency>
 
         <dependency>
             <groupId>com.zorrodev.bpm</groupId>
             <artifactId>zorrobpm-rest</artifactId>
-            <version>0.7.10-SNAPSHOT</version>
+            <version>0.7.10</version>
         </dependency>
 
         <dependency>
             <groupId>com.zorrodev.bpm</groupId>
             <artifactId>zorrobpm-rabbitmq</artifactId>
-            <version>0.7.10-SNAPSHOT</version>
+            <version>0.7.10</version>
         </dependency>
 
     </dependencies>
@@ -73,6 +73,6 @@
     </build>
 
   <scm>
-    <tag>v0.7.8</tag>
+    <tag>v0.7.10</tag>
   </scm>
 </project>
