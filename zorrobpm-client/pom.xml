@@ -4,12 +4,12 @@
     <parent>
         <groupId>com.zorrodev.bpm</groupId>
         <artifactId>zorrobpm</artifactId>
-        <version>0.7.3</version>
+        <version>0.7.4-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
     <groupId>com.zorrodev.bpm</groupId>
     <artifactId>zorrobpm-client</artifactId>
-    <version>0.7.3</version>
+    <version>0.7.4-SNAPSHOT</version>
 
     <properties>
         <java.version>17</java.version>
@@ -24,7 +24,7 @@
         <dependency>
             <groupId>com.zorrodev.bpm</groupId>
             <artifactId>zorrobpm-contract</artifactId>
-            <version>0.7.3</version>
+            <version>0.7.4-SNAPSHOT</version>
         </dependency>
 
         <dependency>
@@ -52,7 +52,7 @@
     </build>
 
     <scm>
-        <tag>v0.7.3</tag>
+        <tag>v0.6.17</tag>
     </scm>
 
 </project>
