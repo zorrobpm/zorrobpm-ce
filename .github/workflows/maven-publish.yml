@@ -41,21 +41,25 @@ jobs:
       - name: Publish each module to Maven Central
         run: |
           set -e
+
+          echo "::group::Publishing parent pom"
+          mvn -B -N -Prelease deploy -DskipTests
+          echo "::endgroup::"
+
           MODULES=(
-            ":zorrobpm"
-            ":zorrobpm-contract"
-            ":zorrobpm-event"
-            ":zorrobpm-client"
-            ":zorrobpm-engine"
-            ":zorrobpm-rest"
-            ":zorrobpm-job-handler-spring-boot-starter"
-            ":zorrobpm-test"
-            ":zorrobpm-exchange"
-            ":zorrobpm-rabbitmq"
+            zorrobpm-contract
+            zorrobpm-event
+            zorrobpm-client
+            zorrobpm-engine
+            zorrobpm-rest
+            zorrobpm-job-handler-spring-boot-starter
+            zorrobpm-test
+            zorrobpm-exchange
+            zorrobpm-rabbitmq
           )
           for m in "${MODULES[@]}"; do
             echo "::group::Publishing $m"
-            mvn -B -Prelease deploy -DskipTests --non-recursive -pl "$m"
+            (cd "$m" && mvn -B -Prelease deploy -DskipTests)
             echo "::endgroup::"
           done
         env:
