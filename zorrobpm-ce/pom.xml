@@ -5,13 +5,13 @@
     <parent>
         <groupId>com.zorrodev.bpm</groupId>
         <artifactId>zorrobpm</artifactId>
-        <version>0.7.5-SNAPSHOT</version>
+        <version>0.7.5</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
     <groupId>com.zorrodev.bpm</groupId>
     <artifactId>zorrobpm-ce</artifactId>
-    <version>0.7.5-SNAPSHOT</version>
+    <version>0.7.5</version>
 
     <properties>
         <java.version>17</java.version>
@@ -32,19 +32,19 @@
         <dependency>
             <groupId>com.zorrodev.bpm</groupId>
             <artifactId>zorrobpm-engine</artifactId>
-            <version>0.7.5-SNAPSHOT</version>
+            <version>0.7.5</version>
         </dependency>
 
         <dependency>
             <groupId>com.zorrodev.bpm</groupId>
             <artifactId>zorrobpm-rest</artifactId>
-            <version>0.7.5-SNAPSHOT</version>
+            <version>0.7.5</version>
         </dependency>
 
         <dependency>
             <groupId>com.zorrodev.bpm</groupId>
             <artifactId>zorrobpm-rabbitmq</artifactId>
-            <version>0.7.5-SNAPSHOT</version>
+            <version>0.7.5</version>
         </dependency>
 
     </dependencies>
