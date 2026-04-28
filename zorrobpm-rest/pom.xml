@@ -11,7 +11,7 @@
 
     <groupId>com.zorrodev.bpm</groupId>
     <artifactId>zorrobpm-rest</artifactId>
-    <version>0.7.12</version>
+    <version>0.7.13-SNAPSHOT</version>
 
     <name>zorrobpm-rest</name>
     <description>ZorroBPM Community Edition: a lightweight Spring Boot based BPM engine.</description>
@@ -53,7 +53,7 @@
         <dependency>
             <groupId>com.zorrodev.bpm</groupId>
             <artifactId>zorrobpm-engine</artifactId>
-            <version>0.7.12</version>
+            <version>0.7.13-SNAPSHOT</version>
         </dependency>
 
         <dependency>
@@ -164,8 +164,4 @@
             </build>
         </profile>
     </profiles>
-
-  <scm>
-    <tag>v0.7.12</tag>
-  </scm>
 </project>
