@@ -35,8 +35,29 @@ jobs:
             exit 1
           fi
 
-      - name: Publish to Maven Central
-        run: mvn -B -Prelease deploy -DskipTests
+      - name: Build all modules into local repository
+        run: mvn -B install -DskipTests
+
+      - name: Publish each module to Maven Central
+        run: |
+          set -e
+          MODULES=(
+            ":zorrobpm"
+            ":zorrobpm-contract"
+            ":zorrobpm-event"
+            ":zorrobpm-client"
+            ":zorrobpm-engine"
+            ":zorrobpm-rest"
+            ":zorrobpm-job-handler-spring-boot-starter"
+            ":zorrobpm-test"
+            ":zorrobpm-exchange"
+            ":zorrobpm-rabbitmq"
+          )
+          for m in "${MODULES[@]}"; do
+            echo "::group::Publishing $m"
+            mvn -B -Prelease deploy -DskipTests --non-recursive -pl "$m"
+            echo "::endgroup::"
+          done
         env:
           MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
