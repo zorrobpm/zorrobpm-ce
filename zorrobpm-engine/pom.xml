@@ -11,7 +11,7 @@
 
     <groupId>com.zorrodev.bpm</groupId>
     <artifactId>zorrobpm-engine</artifactId>
-    <version>0.7.11-SNAPSHOT</version>
+    <version>0.7.11</version>
 
     <name>zorrobpm-engine</name>
     <description>ZorroBPM Community Edition: a lightweight Spring Boot based BPM engine.</description>
@@ -78,7 +78,7 @@
         <dependency>
             <groupId>com.zorrodev.bpm</groupId>
             <artifactId>zorrobpm-contract</artifactId>
-            <version>0.7.11-SNAPSHOT</version>
+            <version>0.7.11</version>
         </dependency>
 
         <dependency>
@@ -102,7 +102,7 @@
         <dependency>
             <groupId>com.zorrodev.bpm</groupId>
             <artifactId>zorrobpm-event</artifactId>
-            <version>0.7.11-SNAPSHOT</version>
+            <version>0.7.11</version>
             <scope>compile</scope>
         </dependency>
 
@@ -114,7 +114,7 @@
         <dependency>
             <groupId>com.zorrodev.bpm</groupId>
             <artifactId>zorrobpm-exchange</artifactId>
-            <version>0.7.11-SNAPSHOT</version>
+            <version>0.7.11</version>
             <scope>compile</scope>
         </dependency>
 
@@ -261,4 +261,8 @@
     </profiles>
 
 
+
+  <scm>
+    <tag>v0.7.11</tag>
+  </scm>
 </project>
