@@ -11,7 +11,7 @@
 
     <groupId>com.zorrodev.bpm</groupId>
     <artifactId>zorrobpm-rabbitmq</artifactId>
-    <version>0.7.7-SNAPSHOT</version>
+    <version>0.7.7</version>
 
     <name>zorrobpm-rabbitmq</name>
     <description>ZorroBPM Community Edition: a lightweight Spring Boot based BPM engine.</description>
@@ -58,7 +58,7 @@
         <dependency>
             <groupId>com.zorrodev.bpm</groupId>
             <artifactId>zorrobpm-exchange</artifactId>
-            <version>0.7.7-SNAPSHOT</version>
+            <version>0.7.7</version>
             <scope>compile</scope>
         </dependency>
     </dependencies>
@@ -114,4 +114,8 @@
             </plugin>
         </plugins>
     </build>
+
+  <scm>
+    <tag>v0.7.7</tag>
+  </scm>
 </project>
