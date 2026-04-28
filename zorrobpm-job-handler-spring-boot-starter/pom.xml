@@ -4,15 +4,36 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.zorrodev.bpm</groupId>
-        <artifactId>zorrobpm</artifactId>
-        <version>0.7.6-SNAPSHOT</version>
-        <relativePath>../pom.xml</relativePath>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>4.0.5</version>
+        <relativePath />
     </parent>
 
     <groupId>com.zorrodev.bpm</groupId>
     <artifactId>zorrobpm-job-handler-spring-boot-starter</artifactId>
     <version>0.7.6-SNAPSHOT</version>
+
+    <name>zorrobpm-job-handler-spring-boot-starter</name>
+    <description>ZorroBPM Community Edition: a lightweight Spring Boot based BPM engine.</description>
+    <url>https://zorrobpm.dev</url>
+
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <id>maratkalibek</id>
+            <name>Marat Kalibekov</name>
+            <email>marat@zorrodev.com</email>
+            <organizationUrl>https://zorrodev.com</organizationUrl>
+        </developer>
+    </developers>
 
     <properties>
         <java.version>17</java.version>
