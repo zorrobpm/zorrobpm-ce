@@ -34,9 +34,13 @@ jobs:
             echo "::error::Maven Central does not accept SNAPSHOT versions. Bump the version in pom.xml before tagging."
             exit 1
           fi
+        env:
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
 
       - name: Build all modules into local repository
         run: mvn -B install -DskipTests
+        env:
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
 
       - name: Publish each module to Maven Central
         run: |
