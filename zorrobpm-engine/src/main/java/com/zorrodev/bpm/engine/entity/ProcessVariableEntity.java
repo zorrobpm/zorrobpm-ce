@@ -5,7 +5,6 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
-import jakarta.persistence.IdClass;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
@@ -16,11 +15,10 @@ import java.util.UUID;
 @Setter
 @Entity
 @Table(name = "variables")
-@IdClass(ProcessVariableEntityId.class)
 public class ProcessVariableEntity {
     @Id
+    private UUID id;
     private UUID processInstanceId;
-    @Id
     private String name;
     private String textValue;
     @Enumerated(EnumType.STRING)

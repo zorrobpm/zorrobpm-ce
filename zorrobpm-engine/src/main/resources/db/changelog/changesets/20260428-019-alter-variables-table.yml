@@ -1,0 +1,33 @@
+databaseChangeLog:
+  - logicalFilePath: 20260428-019
+  - changeSet:
+      id: 20260428-019
+      author: zorrodev
+      changes:
+        - addColumn:
+            tableName: variables
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+        - sql:
+            dbms: postgresql
+            sql: UPDATE variables SET id = gen_random_uuid() WHERE id IS NULL
+        - sql:
+            dbms: h2
+            sql: UPDATE variables SET id = random_uuid() WHERE id IS NULL
+        - addNotNullConstraint:
+            tableName: variables
+            columnName: id
+            columnDataType: uuid
+        - dropPrimaryKey:
+            tableName: variables
+            constraintName: pk_variables
+        - addPrimaryKey:
+            tableName: variables
+            columnNames: id
+            constraintName: pk_variables
+        - addUniqueConstraint:
+            tableName: variables
+            columnNames: process_instance_id, name
+            constraintName: uk_variables__process_instance_id_name

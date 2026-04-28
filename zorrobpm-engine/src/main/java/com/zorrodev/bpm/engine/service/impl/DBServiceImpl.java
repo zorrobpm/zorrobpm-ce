@@ -65,6 +65,7 @@ public class DBServiceImpl implements DBService {
         List<ProcessVariableEntity> vs = new LinkedList<>();
         for (ProcessVariable variable : Optional.ofNullable(variables).orElse(List.of())) {
             ProcessVariableEntity v = new ProcessVariableEntity();
+            v.setId(UUID.randomUUID());
             v.setProcessInstanceId(id);
             v.setName(variable.getName());
             v.setType(variable.getType());
@@ -180,9 +181,15 @@ public class DBServiceImpl implements DBService {
     public void setVariables(@NonNull UUID processInstanceId, List<ProcessVariable> variables) {
         List<ProcessVariableEntity> entities = new ArrayList<>();
         for (ProcessVariable variable : variables) {
-            ProcessVariableEntity entity = new ProcessVariableEntity();
-            entity.setProcessInstanceId(processInstanceId);
-            entity.setName(variable.getName());
+            ProcessVariableEntity entity = variableRepository
+                .findByNameAndProcessInstanceId(variable.getName(), processInstanceId)
+                .orElseGet(() -> {
+                    ProcessVariableEntity e = new ProcessVariableEntity();
+                    e.setId(UUID.randomUUID());
+                    e.setProcessInstanceId(processInstanceId);
+                    e.setName(variable.getName());
+                    return e;
+                });
             entity.setType(variable.getType());
             entity.setTextValue(variable.getValue());
             entities.add(entity);
