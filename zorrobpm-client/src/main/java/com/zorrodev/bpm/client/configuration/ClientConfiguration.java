@@ -24,6 +24,8 @@ public class ClientConfiguration {
     public RuntimeClient runtimeClient() {
         RestClient client = RestClient.builder()
             .baseUrl(baseUrl)
+            .defaultHeader("Content-Type", "application/json")
+            .defaultHeader("Accept", "application/json")
             .build();
         RestClientAdapter adapter = RestClientAdapter.create(client);
         HttpServiceProxyFactory factory = HttpServiceProxyFactory.builderFor(adapter)
@@ -36,6 +38,8 @@ public class ClientConfiguration {
     public ProcessDefinitionClient processDefinitionClient() {
         RestClient client = RestClient.builder()
                 .baseUrl(baseUrl)
+                .defaultHeader("Content-Type", "application/json")
+                .defaultHeader("Accept", "application/json")
                 .build();
         RestClientAdapter adapter = RestClientAdapter.create(client);
         HttpServiceProxyFactory factory = HttpServiceProxyFactory.builderFor(adapter)
@@ -49,6 +53,8 @@ public class ClientConfiguration {
     public QueryClient queryClient() {
         RestClient client = RestClient.builder()
             .baseUrl(baseUrl)
+            .defaultHeader("Content-Type", "application/json")
+            .defaultHeader("Accept", "application/json")
             .build();
         RestClientAdapter adapter = RestClientAdapter.create(client);
         HttpServiceProxyFactory factory = HttpServiceProxyFactory.builderFor(adapter)
