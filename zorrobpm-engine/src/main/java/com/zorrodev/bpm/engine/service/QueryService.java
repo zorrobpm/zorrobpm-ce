@@ -5,12 +5,12 @@ import com.zorrodev.bpm.contract.model.ProcessInstance;
 import com.zorrodev.bpm.contract.model.ProcessVariable;
 import com.zorrodev.bpm.contract.model.ServiceTask;
 import com.zorrodev.bpm.contract.model.UserTask;
-import com.zorrodev.bpm.engine.dto.Incident;
-import com.zorrodev.bpm.engine.query.IncidentQuery;
-import com.zorrodev.bpm.engine.query.ProcessInstanceQuery;
-import com.zorrodev.bpm.engine.query.ServiceTaskQuery;
-import com.zorrodev.bpm.engine.query.UserTaskQuery;
-import com.zorrodev.bpm.engine.query.VariableQuery;
+import com.zorrodev.bpm.contract.dto.Incident;
+import com.zorrodev.bpm.contract.dto.query.IncidentQuery;
+import com.zorrodev.bpm.contract.dto.query.ProcessInstanceQuery;
+import com.zorrodev.bpm.contract.dto.query.ServiceTaskQuery;
+import com.zorrodev.bpm.contract.dto.query.UserTaskQuery;
+import com.zorrodev.bpm.contract.dto.query.VariableQuery;
 
 import java.util.UUID;
 

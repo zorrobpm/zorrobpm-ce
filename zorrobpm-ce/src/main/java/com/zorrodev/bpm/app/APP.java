@@ -7,10 +7,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication(scanBasePackages = {
     "com.zorrodev.bpm.app",
     "com.zorrodev.bpm.engine",
-    "com.zorrodev.bpm.admin",
     "com.zorrodev.bpm.rest",
     "com.zorrodev.bpm.rabbitmq",
-    "com.zorrodev.bpm.mcp"
 })
 public class APP implements CommandLineRunner {
 

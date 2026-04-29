@@ -1,4 +1,4 @@
-package com.zorrodev.bpm.engine.query;
+package com.zorrodev.bpm.contract.dto.query;
 
 import lombok.Getter;
 import lombok.Setter;

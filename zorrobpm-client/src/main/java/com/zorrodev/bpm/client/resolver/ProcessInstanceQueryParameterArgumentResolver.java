@@ -1,16 +1,16 @@
 package com.zorrodev.bpm.client.resolver;
 
-import com.zorrodev.bpm.contract.dto.ProcessInstancesQueryParameters;
 import org.springframework.core.MethodParameter;
 import org.springframework.web.service.invoker.HttpRequestValues;
 import org.springframework.web.service.invoker.HttpServiceArgumentResolver;
+import com.zorrodev.bpm.contract.dto.query.ProcessInstanceQuery;
 
 public class ProcessInstanceQueryParameterArgumentResolver implements HttpServiceArgumentResolver {
 
     @Override
     public boolean resolve(Object argument, MethodParameter parameter, HttpRequestValues.Builder requestValues) {
-        if (parameter.getParameterType().equals(ProcessInstancesQueryParameters.class)) {
-            ProcessInstancesQueryParameters search = (ProcessInstancesQueryParameters) argument;
+        if (parameter.getParameterType().equals(ProcessInstanceQuery.class)) {
+            ProcessInstanceQuery search = (ProcessInstanceQuery) argument;
             requestValues.addRequestParameter("pageNumber", search.getPageIndex().toString());
             requestValues.addRequestParameter("pageSize", search.getPageSize().toString());
             if (search.getProcessDefinitionId() != null) {
@@ -21,6 +21,9 @@ public class ProcessInstanceQueryParameterArgumentResolver implements HttpServic
             }
             if (search.getProcessDefinitionVersion() != null) {
                 requestValues.addRequestParameter("processDefinitionVersion", search.getProcessDefinitionVersion().toString());
+            }
+            if (search.getParentProcessInstanceId() != null) {
+                requestValues.addRequestParameter("parentProcessInstanceId", search.getParentProcessInstanceId().toString());
             }
             return true;
         }

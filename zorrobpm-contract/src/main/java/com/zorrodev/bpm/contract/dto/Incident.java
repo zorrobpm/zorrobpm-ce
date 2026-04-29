@@ -1,4 +1,4 @@
-package com.zorrodev.bpm.engine.dto;
+package com.zorrodev.bpm.contract.dto;
 
 import lombok.Getter;
 import lombok.Setter;

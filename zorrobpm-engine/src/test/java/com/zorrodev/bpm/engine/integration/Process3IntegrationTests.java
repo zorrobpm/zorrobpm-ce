@@ -7,7 +7,7 @@ import com.zorrodev.bpm.contract.model.ProcessInstance;
 import com.zorrodev.bpm.contract.model.ServiceTask;
 import com.zorrodev.bpm.engine.TestMain;
 import com.zorrodev.bpm.engine.dto.IdDTO;
-import com.zorrodev.bpm.engine.query.ServiceTaskQuery;
+import com.zorrodev.bpm.contract.dto.query.ServiceTaskQuery;
 import com.zorrodev.bpm.engine.service.ProcessDefinitionService;
 import com.zorrodev.bpm.engine.service.QueryService;
 import com.zorrodev.bpm.engine.service.RuntimeService;

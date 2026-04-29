@@ -6,7 +6,7 @@ import com.zorrodev.bpm.contract.model.ProcessVariable;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnElementModel;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnFlowModel;
 import com.zorrodev.bpm.engine.dto.Activity;
-import com.zorrodev.bpm.engine.dto.Incident;
+import com.zorrodev.bpm.contract.dto.Incident;
 import com.zorrodev.bpm.engine.dto.Token;
 import org.jspecify.annotations.NonNull;
 

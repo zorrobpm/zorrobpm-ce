@@ -1,6 +1,6 @@
 package com.zorrodev.bpm.engine.mapper;
 
-import com.zorrodev.bpm.engine.dto.Incident;
+import com.zorrodev.bpm.contract.dto.Incident;
 import com.zorrodev.bpm.engine.entity.IncidentEntity;
 import org.springframework.stereotype.Component;
 

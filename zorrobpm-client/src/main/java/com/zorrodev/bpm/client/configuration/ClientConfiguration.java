@@ -44,4 +44,20 @@ public class ClientConfiguration {
 
         return factory.createClient(ProcessDefinitionClient.class);
     }
+
+    @Bean
+    public QueryClient queryClient() {
+        RestClient client = RestClient.builder()
+            .baseUrl(baseUrl)
+            .build();
+        RestClientAdapter adapter = RestClientAdapter.create(client);
+        HttpServiceProxyFactory factory = HttpServiceProxyFactory.builderFor(adapter)
+            .customArgumentResolver(new ProcessDefinitionQueryParametersArgumentResolver())
+            .customArgumentResolver(new ProcessInstanceQueryParameterArgumentResolver())
+            .customArgumentResolver(new ServiceTaskQueryParametersArgumentResolver())
+            .customArgumentResolver(new UserTaskQueryParametersArgumentResolver())
+            .build();
+
+        return factory.createClient(QueryClient.class);
+    }
 }
