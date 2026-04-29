@@ -13,7 +13,7 @@
 
     <groupId>com.zorrodev.bpm</groupId>
     <artifactId>zorrobpm</artifactId>
-    <version>0.7.14-SNAPSHOT</version>
+    <version>0.7.14</version>
     <packaging>pom</packaging>
 
     <name>ZorroBPM</name>
@@ -67,7 +67,7 @@
         <connection>scm:git:https://github.com/zorrobpm/zorrobpm-ce.git</connection>
         <developerConnection>scm:git:https://github.com/zorrobpm/zorrobpm-ce.git</developerConnection>
         <url>https://github.com/zorrobpm/zorrobpm-ce.git</url>
-        <tag>v0.7.8</tag>
+        <tag>v0.7.14</tag>
     </scm>
 
     <profiles>
