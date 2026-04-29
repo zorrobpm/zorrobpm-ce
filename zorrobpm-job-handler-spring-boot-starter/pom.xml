@@ -12,7 +12,7 @@
 
     <groupId>com.zorrodev.bpm</groupId>
     <artifactId>zorrobpm-job-handler-spring-boot-starter</artifactId>
-    <version>0.7.15</version>
+    <version>0.7.16-SNAPSHOT</version>
 
     <name>zorrobpm-job-handler-spring-boot-starter</name>
     <description>ZorroBPM Community Edition: a lightweight Spring Boot based BPM engine.</description>
@@ -53,7 +53,7 @@
         <dependency>
             <groupId>com.zorrodev.bpm</groupId>
             <artifactId>zorrobpm-exchange</artifactId>
-            <version>0.7.15</version>
+            <version>0.7.16-SNAPSHOT</version>
         </dependency>
 
         <dependency>
@@ -158,6 +158,6 @@
     </profiles>
 
   <scm>
-    <tag>v0.7.15</tag>
+    <tag>v0.7.14</tag>
   </scm>
 </project>
