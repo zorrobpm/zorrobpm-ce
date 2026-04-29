@@ -1,46 +1,53 @@
 package com.zorrodev.bpm.rest.resource;
 
+import com.zorrodev.bpm.contract.RuntimeContract;
 import com.zorrodev.bpm.contract.dto.CompleteTaskDTO;
+import com.zorrodev.bpm.contract.dto.IdDTO;
 import com.zorrodev.bpm.contract.dto.ResolveIncidentDTO;
 import com.zorrodev.bpm.contract.dto.StartProcessInstanceDTO;
-import com.zorrodev.bpm.engine.dto.IdDTO;
 import com.zorrodev.bpm.engine.service.RuntimeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Optional;
 import java.util.UUID;
 
 @RestController
 @RequiredArgsConstructor
-public class RuntimeResource {
+public class RuntimeResource implements RuntimeContract {
 
     private final RuntimeService runtimeService;
 
     @Transactional
-    @PostMapping("/process-instances")
+    @Override
     public IdDTO startProcessInstance(@RequestBody StartProcessInstanceDTO dto) {
-        return runtimeService.startProcessInstance(dto);
-    };
+        return Optional.ofNullable(runtimeService.startProcessInstance(dto)).map(this::toDTO).orElseThrow();
+    }
 
     @Transactional
-    @PostMapping("/service-tasks/{id}/complete")
+    @Override
     public IdDTO completeServiceTask(@PathVariable UUID id, @RequestBody CompleteTaskDTO dto) {
-        return runtimeService.completeServiceTask(id, dto.getVariables());
+        return Optional.ofNullable(runtimeService.completeServiceTask(id, dto.getVariables())).map(this::toDTO).orElseThrow();
     }
 
     @Transactional
-    @PostMapping("/user-tasks/{id}/complete")
+    @Override
     public IdDTO completeUserTask(@PathVariable UUID id, @RequestBody CompleteTaskDTO dto) {
-        return runtimeService.completeUserTask(id, dto.getVariables());
+        return Optional.ofNullable(runtimeService.completeUserTask(id, dto.getVariables())).map(this::toDTO).orElseThrow();
     }
 
     @Transactional
-    @PostMapping("/incidents/{id}/resolve")
+    @Override
     public IdDTO resolveIncident(@PathVariable UUID id, @RequestBody ResolveIncidentDTO dto) {
-        return runtimeService.resolveIncident(id, dto.getVariables());
+        return Optional.ofNullable(runtimeService.resolveIncident(id, dto.getVariables())).map(this::toDTO).orElseThrow();
+    }
+
+    private IdDTO toDTO(com.zorrodev.bpm.engine.dto.IdDTO idDTO) {
+        IdDTO result = new IdDTO();
+        result.setId(idDTO.getId());
+        return result;
     }
 }

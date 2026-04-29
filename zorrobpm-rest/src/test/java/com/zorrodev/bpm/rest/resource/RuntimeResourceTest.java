@@ -1,10 +1,10 @@
 package com.zorrodev.bpm.rest.resource;
 
 import com.zorrodev.bpm.contract.dto.CompleteTaskDTO;
+import com.zorrodev.bpm.contract.dto.IdDTO;
 import com.zorrodev.bpm.contract.dto.ResolveIncidentDTO;
 import com.zorrodev.bpm.contract.dto.StartProcessInstanceDTO;
 import com.zorrodev.bpm.contract.model.ProcessVariable;
-import com.zorrodev.bpm.engine.dto.IdDTO;
 import com.zorrodev.bpm.engine.service.RuntimeService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,11 +32,15 @@ class RuntimeResourceTest {
     void startProcessInstance_delegatesToService() {
         StartProcessInstanceDTO dto = new StartProcessInstanceDTO();
         IdDTO expected = new IdDTO(UUID.randomUUID());
-        when(runtimeService.startProcessInstance(dto)).thenReturn(expected);
+        when(runtimeService.startProcessInstance(dto)).thenReturn(toEngineDTO(expected));
 
         IdDTO result = resource.startProcessInstance(dto);
 
-        assertThat(result).isSameAs(expected);
+        assertThat(result.getId()).isSameAs(expected.getId());
+    }
+
+    private com.zorrodev.bpm.engine.dto.IdDTO toEngineDTO(IdDTO expected) {
+        return new com.zorrodev.bpm.engine.dto.IdDTO(expected.getId());
     }
 
     @Test
@@ -46,7 +50,7 @@ class RuntimeResourceTest {
         CompleteTaskDTO dto = new CompleteTaskDTO();
         dto.setVariables(vars);
         IdDTO expected = new IdDTO(id);
-        when(runtimeService.completeServiceTask(id, vars)).thenReturn(expected);
+        when(runtimeService.completeServiceTask(id, vars)).thenReturn(toEngineDTO(expected));
 
         IdDTO result = resource.completeServiceTask(id, dto);
 
@@ -61,7 +65,7 @@ class RuntimeResourceTest {
         CompleteTaskDTO dto = new CompleteTaskDTO();
         dto.setVariables(vars);
         IdDTO expected = new IdDTO(id);
-        when(runtimeService.completeUserTask(id, vars)).thenReturn(expected);
+        when(runtimeService.completeUserTask(id, vars)).thenReturn(toEngineDTO(expected));
 
         IdDTO result = resource.completeUserTask(id, dto);
 
@@ -76,7 +80,7 @@ class RuntimeResourceTest {
         ResolveIncidentDTO dto = new ResolveIncidentDTO();
         dto.setVariables(vars);
         IdDTO expected = new IdDTO(id);
-        when(runtimeService.resolveIncident(id, vars)).thenReturn(expected);
+        when(runtimeService.resolveIncident(id, vars)).thenReturn(toEngineDTO(expected));
 
         IdDTO result = resource.resolveIncident(id, dto);
 
