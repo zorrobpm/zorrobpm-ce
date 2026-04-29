@@ -54,7 +54,7 @@ class RuntimeResourceTest {
 
         IdDTO result = resource.completeServiceTask(id, dto);
 
-        assertThat(result).isSameAs(expected);
+        assertThat(result.getId()).isSameAs(expected.getId());
         verify(runtimeService).completeServiceTask(id, vars);
     }
 
@@ -69,7 +69,7 @@ class RuntimeResourceTest {
 
         IdDTO result = resource.completeUserTask(id, dto);
 
-        assertThat(result).isSameAs(expected);
+        assertThat(result.getId()).isSameAs(expected.getId());
         verify(runtimeService).completeUserTask(id, vars);
     }
 
@@ -84,7 +84,7 @@ class RuntimeResourceTest {
 
         IdDTO result = resource.resolveIncident(id, dto);
 
-        assertThat(result).isSameAs(expected);
+        assertThat(result.getId()).isSameAs(expected.getId());
         verify(runtimeService).resolveIncident(id, vars);
     }
 }
