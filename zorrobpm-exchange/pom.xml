@@ -11,7 +11,7 @@
 
     <groupId>com.zorrodev.bpm</groupId>
     <artifactId>zorrobpm-exchange</artifactId>
-    <version>0.7.14</version>
+    <version>0.7.15-SNAPSHOT</version>
 
     <name>zorrobpm-exchange</name>
     <description>ZorroBPM Community Edition: a lightweight Spring Boot based BPM engine.</description>
