@@ -25,4 +25,5 @@ public class UserTask {
     private Integer loopIndex;
     private Integer loopTotal;
     private String loopItem;
+    private Instant canceledAt;
 }

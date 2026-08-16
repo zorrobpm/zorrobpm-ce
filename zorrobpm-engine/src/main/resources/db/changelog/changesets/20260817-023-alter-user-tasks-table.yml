@@ -1,0 +1,12 @@
+databaseChangeLog:
+  - logicalFilePath: 20260817-023
+  - changeSet:
+      id: 20260817-023
+      author: zorrodev
+      changes:
+        - addColumn:
+            tableName: user_tasks
+            columns:
+              - column:
+                  name: canceled_at
+                  type: datetime with timezone

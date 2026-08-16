@@ -228,11 +228,23 @@ public class DBServiceImpl implements DBService {
         if (entity.getCompletedAt() != null) {
             throw new UserTaskAlreadyAssignedException("User task " + userTaskId + " is already completed");
         }
+        if (entity.getCanceledAt() != null) {
+            throw new UserTaskAlreadyAssignedException("User task " + userTaskId + " is canceled");
+        }
         if (entity.getAssignee() != null) {
             throw new UserTaskAlreadyAssignedException("User task " + userTaskId + " is already assigned to " + entity.getAssignee());
         }
         entity.setAssignee(assignee);
         userTaskRepository.save(entity);
+    }
+
+    @Override
+    public void cancelOpenChildUserTasks(UUID parentActivityId) {
+        Instant now = Instant.now();
+        for (ActivityEntity child : activityRepository.findByParentActivityIdAndStatus(parentActivityId, ActivityStatus.CREATED)) {
+            activityRepository.setStatusAndCompletedAt(child.getId(), ActivityStatus.TERMINATED, now);
+            userTaskRepository.setCanceledAt(child.getId(), now);
+        }
     }
 
     @Override

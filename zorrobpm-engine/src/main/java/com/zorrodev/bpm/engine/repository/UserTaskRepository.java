@@ -43,7 +43,9 @@ public interface UserTaskRepository extends JpaRepository<UserTaskEntity, UUID>,
     static Specification<UserTaskEntity> byCompleted(boolean completed) {
         return (root, query, criteriaBuilder) -> completed
             ? criteriaBuilder.isNotNull(root.get("completedAt"))
-            : criteriaBuilder.isNull(root.get("completedAt"));
+            : criteriaBuilder.and(
+                criteriaBuilder.isNull(root.get("completedAt")),
+                criteriaBuilder.isNull(root.get("canceledAt")));
     }
 
     static Specification<UserTaskEntity> byCandidateGroup(String group) {
@@ -69,6 +71,10 @@ public interface UserTaskRepository extends JpaRepository<UserTaskEntity, UUID>,
     @Modifying
     @Query("UPDATE UserTaskEntity e SET e.completedAt = :completedAt WHERE e.id = :taskId")
     void setCompletedAt(UUID taskId, Instant completedAt);
+
+    @Modifying
+    @Query("UPDATE UserTaskEntity e SET e.canceledAt = :canceledAt WHERE e.id = :taskId")
+    void setCanceledAt(UUID taskId, Instant canceledAt);
 
     List<UserTaskEntity> findByProcessInstanceId(UUID processInstanceId);
 

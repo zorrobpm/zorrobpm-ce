@@ -331,6 +331,16 @@ public class ActivityServiceImpl implements ActivityService {
 
         log.info("{}/{}: Completing {}: {}/{} [{}/{}]", processInstanceId, token, activity.getType(), userTaskId, activity.getBpmnElementId(), activity.getLoopIndex(), activity.getLoopTotal());
 
+        if (multiInstance.getCompletionCondition() != null && evaluateCompletionCondition(processInstanceId, scope, multiInstance)) {
+            dbService.cancelOpenChildUserTasks(scope.getId());
+            dbService.completeActivity(scope.getId());
+
+            log.info("{}/{}: Multi-instance completion condition met, completing {}: {}/{}", processInstanceId, token, scope.getType(), scope.getId(), scope.getBpmnElementId());
+
+            advance(processInstanceId, token, bpmn, bpmnElement);
+            return;
+        }
+
         if (multiInstance.isSequential() && activity.getLoopIndex() + 1 < activity.getLoopTotal()) {
             int nextIndex = activity.getLoopIndex() + 1;
             List<?> items = evaluateInputCollection(processInstanceId, multiInstance);
@@ -342,6 +352,26 @@ public class ActivityServiceImpl implements ActivityService {
             dbService.completeActivity(scope.getId());
             advance(processInstanceId, token, bpmn, bpmnElement);
         }
+    }
+
+    private boolean evaluateCompletionCondition(UUID processInstanceId, Activity scope, MultiInstanceExtensionModel multiInstance) {
+        List<ProcessVariable> conditionVariables = new ArrayList<>(dbService.getVariables(processInstanceId));
+        conditionVariables.add(longVariable("numberOfCompletedInstances", dbService.countCompletedChildActivities(scope.getId())));
+        conditionVariables.add(longVariable("numberOfInstances", scope.getLoopTotal()));
+
+        Object result = scriptService.evaluateExpression(stripExpression(multiInstance.getCompletionCondition()), conditionVariables);
+        if (!(result instanceof Boolean)) {
+            throw new IllegalStateException("Multi-instance completionCondition '" + multiInstance.getCompletionCondition() + "' did not evaluate to a boolean");
+        }
+        return (Boolean) result;
+    }
+
+    private static ProcessVariable longVariable(String name, long value) {
+        ProcessVariable variable = new ProcessVariable();
+        variable.setName(name);
+        variable.setType(ProcessVariableType.LONG);
+        variable.setValue(String.valueOf(value));
+        return variable;
     }
 
     private void updateOutputCollection(UUID processInstanceId, String outputCollection, int index, Object value) {

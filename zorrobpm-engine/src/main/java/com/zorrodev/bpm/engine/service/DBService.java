@@ -39,6 +39,8 @@ public interface DBService {
 
     void claimUserTask(UUID userTaskId, String assignee);
 
+    void cancelOpenChildUserTasks(UUID parentActivityId);
+
     void unclaimUserTask(UUID userTaskId);
 
     Activity getActivity(UUID activityId);

@@ -194,6 +194,10 @@ public class BpmnParseServiceImpl implements BpmnParseService {
                 multiInstance.setOutputCollection(loopCharacteristics.getOutputCollection());
                 multiInstance.setOutputElement(loopCharacteristics.getOutputElement());
             }
+            multiInstance.setCompletionCondition(Optional.ofNullable(userTask.getMultiInstanceLoopCharacteristics().getCompletionCondition())
+                .map(condition -> condition.getExpression())
+                .filter(str -> !str.isEmpty())
+                .orElse(null));
             element.getExtensions().setMultiInstanceExtension(multiInstance);
         }
         if (userTask.getExtensionElements() != null) {

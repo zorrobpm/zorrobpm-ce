@@ -370,6 +370,35 @@ class DBServiceImplTest {
         assertThat(count).isEqualTo(2L);
     }
 
+    @Test
+    void cancelOpenChildUserTasks_terminatesCreatedChildrenAndCancelsTasks() {
+        UUID scopeId = UUID.randomUUID();
+        ActivityEntity child1 = new ActivityEntity();
+        child1.setId(UUID.randomUUID());
+        ActivityEntity child2 = new ActivityEntity();
+        child2.setId(UUID.randomUUID());
+        when(activityRepository.findByParentActivityIdAndStatus(scopeId, ActivityStatus.CREATED)).thenReturn(List.of(child1, child2));
+
+        dbService.cancelOpenChildUserTasks(scopeId);
+
+        verify(activityRepository).setStatusAndCompletedAt(eq(child1.getId()), eq(ActivityStatus.TERMINATED), any());
+        verify(activityRepository).setStatusAndCompletedAt(eq(child2.getId()), eq(ActivityStatus.TERMINATED), any());
+        verify(userTaskRepository).setCanceledAt(eq(child1.getId()), any());
+        verify(userTaskRepository).setCanceledAt(eq(child2.getId()), any());
+    }
+
+    @Test
+    void claimUserTask_canceledTask_throwsConflict() {
+        UUID id = UUID.randomUUID();
+        UserTaskEntity entity = new UserTaskEntity();
+        entity.setId(id);
+        entity.setCanceledAt(Instant.now());
+        when(userTaskRepository.findById(id)).thenReturn(Optional.of(entity));
+
+        assertThatThrownBy(() -> dbService.claimUserTask(id, "alice"))
+            .isInstanceOf(UserTaskAlreadyAssignedException.class);
+    }
+
     private void stubActivityAndProcessInstance(UUID activityId, UUID processInstanceId) {
         ActivityEntity activity = new ActivityEntity();
         activity.setId(activityId);

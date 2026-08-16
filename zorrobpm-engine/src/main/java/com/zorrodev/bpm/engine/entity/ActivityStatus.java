@@ -1,5 +1,5 @@
 package com.zorrodev.bpm.engine.entity;
 
 public enum ActivityStatus {
-    CREATED, IN_PROGRESS, ERROR, COMPLETED;
+    CREATED, IN_PROGRESS, ERROR, COMPLETED, TERMINATED;
 }

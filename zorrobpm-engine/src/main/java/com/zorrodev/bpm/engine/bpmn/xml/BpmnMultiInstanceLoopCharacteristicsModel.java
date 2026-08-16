@@ -15,4 +15,6 @@ public class BpmnMultiInstanceLoopCharacteristicsModel {
     private Boolean isSequential;
     @XmlElement(name = "extensionElements", namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL")
     private ExtensionElements extensionElements;
+    @XmlElement(name = "completionCondition", namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL")
+    private BpmnConditionExpressionModel completionCondition;
 }

@@ -11,4 +11,5 @@ public class MultiInstanceExtensionModel {
     private String inputElement;
     private String outputCollection;
     private String outputElement;
+    private String completionCondition;
 }
