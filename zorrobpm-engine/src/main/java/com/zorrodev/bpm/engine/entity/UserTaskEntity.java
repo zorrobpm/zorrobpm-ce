@@ -23,4 +23,7 @@ public class UserTaskEntity {
     private Instant completedAt;
     private String formKey;
     private String assignee;
+    private Integer loopIndex;
+    private Integer loopTotal;
+    private String loopItem;
 }

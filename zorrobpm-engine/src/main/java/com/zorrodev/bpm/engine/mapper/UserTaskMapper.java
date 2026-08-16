@@ -31,6 +31,9 @@ public class UserTaskMapper {
         dto.setCode(entity.getBpmnElementId());
         dto.setFormKey(entity.getFormKey());
         dto.setAssignee(entity.getAssignee());
+        dto.setLoopIndex(entity.getLoopIndex());
+        dto.setLoopTotal(entity.getLoopTotal());
+        dto.setLoopItem(entity.getLoopItem());
 
         List<UserTaskCandidateEntity> candidates = userTaskCandidateRepository.findByTaskId(entity.getId());
         dto.setCandidateGroups(candidateValues(candidates, UserTaskCandidateType.GROUP));

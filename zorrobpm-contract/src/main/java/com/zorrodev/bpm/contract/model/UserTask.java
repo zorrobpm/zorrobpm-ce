@@ -22,4 +22,7 @@ public class UserTask {
     private String assignee;
     private List<String> candidateGroups = new ArrayList<>();
     private List<String> candidateUsers = new ArrayList<>();
+    private Integer loopIndex;
+    private Integer loopTotal;
+    private String loopItem;
 }

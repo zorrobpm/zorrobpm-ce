@@ -1,0 +1,28 @@
+databaseChangeLog:
+  - logicalFilePath: 20260816-021
+  - changeSet:
+      id: 20260816-021
+      author: zorrodev
+      changes:
+        - addColumn:
+            tableName: activities
+            columns:
+              - column:
+                  name: parent_activity_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_activities__parent_activity_id
+                    referencedTableName: activities
+                    referencedColumnNames: id
+              - column:
+                  name: loop_index
+                  type: int
+              - column:
+                  name: loop_total
+                  type: int
+        - createIndex:
+            tableName: activities
+            indexName: ix_activities__parent_activity_id
+            columns:
+              - column:
+                  name: parent_activity_id

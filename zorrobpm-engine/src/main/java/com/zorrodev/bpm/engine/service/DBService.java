@@ -19,6 +19,8 @@ public interface DBService {
 
     UUID createActivity(UUID processInstanceId, UUID tokenId, BpmnElementModel element);
 
+    UUID createActivity(UUID processInstanceId, UUID tokenId, BpmnElementModel element, UUID parentActivityId, Integer loopIndex, Integer loopTotal);
+
     UUID createActivity(UUID processInstanceId, UUID tokenId, BpmnFlowModel element);
 
     void completeActivity(UUID executionId);
@@ -31,6 +33,8 @@ public interface DBService {
 
     void createUserTask(UUID activityId, BpmnElementModel element);
 
+    void createUserTask(UUID activityId, BpmnElementModel element, Integer loopIndex, Integer loopTotal, String loopItem);
+
     void completeUserTask(UUID serviceTaskId);
 
     void claimUserTask(UUID userTaskId, String assignee);
@@ -38,6 +42,10 @@ public interface DBService {
     void unclaimUserTask(UUID userTaskId);
 
     Activity getActivity(UUID activityId);
+
+    Activity getActivityForUpdate(UUID activityId);
+
+    long countCompletedChildActivities(UUID parentActivityId);
 
     List<ProcessVariable> getVariables(@NonNull UUID processInstanceId);
 

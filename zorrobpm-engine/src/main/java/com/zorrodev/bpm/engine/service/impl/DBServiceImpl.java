@@ -86,6 +86,11 @@ public class DBServiceImpl implements DBService {
 
     @Override
     public UUID createActivity(UUID processInstanceId, UUID token, BpmnElementModel element) {
+        return createActivity(processInstanceId, token, element, null, null, null);
+    }
+
+    @Override
+    public UUID createActivity(UUID processInstanceId, UUID token, BpmnElementModel element, UUID parentActivityId, Integer loopIndex, Integer loopTotal) {
         UUID id = UUID.randomUUID();
         ActivityEntity entity = new ActivityEntity();
         entity.setId(id);
@@ -95,6 +100,9 @@ public class DBServiceImpl implements DBService {
         entity.setType(element.getType());
         entity.setBpmnElementId(element.getId());
         entity.setToken(token);
+        entity.setParentActivityId(parentActivityId);
+        entity.setLoopIndex(loopIndex);
+        entity.setLoopTotal(loopTotal);
         activityRepository.saveAndFlush(entity);
         return id;
     }
@@ -142,6 +150,11 @@ public class DBServiceImpl implements DBService {
 
     @Override
     public void createUserTask(UUID activityId, BpmnElementModel element) {
+        createUserTask(activityId, element, null, null, null);
+    }
+
+    @Override
+    public void createUserTask(UUID activityId, BpmnElementModel element, Integer loopIndex, Integer loopTotal, String loopItem) {
         ActivityEntity activity = activityRepository.findById(activityId).orElseThrow();
         UserTaskEntity entity = new UserTaskEntity();
         entity.setId(activity.getId());
@@ -160,6 +173,9 @@ public class DBServiceImpl implements DBService {
             entity.setAssignee(extension.getAssignee());
             entity.setFormKey(extension.getFormKey());
         }
+        entity.setLoopIndex(loopIndex);
+        entity.setLoopTotal(loopTotal);
+        entity.setLoopItem(loopItem);
 
         userTaskRepository.save(entity);
 
@@ -230,6 +246,17 @@ public class DBServiceImpl implements DBService {
     public Activity getActivity(UUID activityId) {
         ActivityEntity activityEntity = activityRepository.findById(activityId).orElseThrow();
         return getActivity(activityEntity);
+    }
+
+    @Override
+    public Activity getActivityForUpdate(UUID activityId) {
+        ActivityEntity activityEntity = activityRepository.findByIdForUpdate(activityId).orElseThrow();
+        return getActivity(activityEntity);
+    }
+
+    @Override
+    public long countCompletedChildActivities(UUID parentActivityId) {
+        return activityRepository.countByParentActivityIdAndStatus(parentActivityId, ActivityStatus.COMPLETED);
     }
 
     @Override
@@ -352,6 +379,9 @@ public class DBServiceImpl implements DBService {
         activity.setStatus(activityEntity.getStatus());
         activity.setType(activityEntity.getType());
         activity.setToken(activityEntity.getToken());
+        activity.setParentActivityId(activityEntity.getParentActivityId());
+        activity.setLoopIndex(activityEntity.getLoopIndex());
+        activity.setLoopTotal(activityEntity.getLoopTotal());
         return activity;
     }
 }

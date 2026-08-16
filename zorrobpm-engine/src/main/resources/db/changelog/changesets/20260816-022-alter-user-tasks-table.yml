@@ -1,0 +1,18 @@
+databaseChangeLog:
+  - logicalFilePath: 20260816-022
+  - changeSet:
+      id: 20260816-022
+      author: zorrodev
+      changes:
+        - addColumn:
+            tableName: user_tasks
+            columns:
+              - column:
+                  name: loop_index
+                  type: int
+              - column:
+                  name: loop_total
+                  type: int
+              - column:
+                  name: loop_item
+                  type: text

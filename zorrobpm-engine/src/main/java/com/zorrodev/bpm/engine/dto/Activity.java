@@ -19,4 +19,7 @@ public class Activity {
     private ActivityStatus status;
     private Instant createdAt;
     private Instant completedAt;
+    private UUID parentActivityId;
+    private Integer loopIndex;
+    private Integer loopTotal;
 }

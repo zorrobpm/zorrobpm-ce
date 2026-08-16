@@ -28,4 +28,7 @@ public class ActivityEntity {
     @Enumerated(EnumType.STRING)
     private ActivityStatus status;
     private UUID token;
+    private UUID parentActivityId;
+    private Integer loopIndex;
+    private Integer loopTotal;
 }

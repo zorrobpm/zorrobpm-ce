@@ -9,4 +9,6 @@ public interface ScriptService {
 
     Object evaluateScript(String script, List<ProcessVariable> variables);
 
+    Object evaluateExpression(String expression, List<ProcessVariable> variables);
+
 }

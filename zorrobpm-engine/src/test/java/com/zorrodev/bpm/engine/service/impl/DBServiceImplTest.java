@@ -302,6 +302,74 @@ class DBServiceImplTest {
         verifyNoInteractions(userTaskCandidateRepository);
     }
 
+    @Test
+    void createActivity_withParentAndLoopFields_persistsThem() {
+        UUID processInstanceId = UUID.randomUUID();
+        UUID token = UUID.randomUUID();
+        UUID parentActivityId = UUID.randomUUID();
+        BpmnElementModel element = new BpmnElementModel();
+        element.setId("ut1");
+        element.setType(BpmnElementType.USER_TASK);
+
+        UUID id = dbService.createActivity(processInstanceId, token, element, parentActivityId, 2, 5);
+
+        assertThat(id).isNotNull();
+        ArgumentCaptor<ActivityEntity> captor = ArgumentCaptor.forClass(ActivityEntity.class);
+        verify(activityRepository).saveAndFlush(captor.capture());
+        ActivityEntity saved = captor.getValue();
+        assertThat(saved.getParentActivityId()).isEqualTo(parentActivityId);
+        assertThat(saved.getLoopIndex()).isEqualTo(2);
+        assertThat(saved.getLoopTotal()).isEqualTo(5);
+        assertThat(saved.getStatus()).isEqualTo(ActivityStatus.CREATED);
+    }
+
+    @Test
+    void createUserTask_withLoopFields_persistsThem() {
+        UUID activityId = UUID.randomUUID();
+        UUID processInstanceId = UUID.randomUUID();
+        stubActivityAndProcessInstance(activityId, processInstanceId);
+        BpmnElementModel element = newUserTaskElement("alice", "form1", null, null);
+
+        dbService.createUserTask(activityId, element, 1, 3, "\"a\"");
+
+        ArgumentCaptor<UserTaskEntity> captor = ArgumentCaptor.forClass(UserTaskEntity.class);
+        verify(userTaskRepository).save(captor.capture());
+        UserTaskEntity saved = captor.getValue();
+        assertThat(saved.getLoopIndex()).isEqualTo(1);
+        assertThat(saved.getLoopTotal()).isEqualTo(3);
+        assertThat(saved.getLoopItem()).isEqualTo("\"a\"");
+        assertThat(saved.getAssignee()).isEqualTo("alice");
+    }
+
+    @Test
+    void getActivityForUpdate_mapsParentAndLoopFields() {
+        UUID activityId = UUID.randomUUID();
+        UUID parentActivityId = UUID.randomUUID();
+        ActivityEntity entity = new ActivityEntity();
+        entity.setId(activityId);
+        entity.setParentActivityId(parentActivityId);
+        entity.setLoopIndex(1);
+        entity.setLoopTotal(3);
+        when(activityRepository.findByIdForUpdate(activityId)).thenReturn(Optional.of(entity));
+
+        Activity activity = dbService.getActivityForUpdate(activityId);
+
+        assertThat(activity.getId()).isEqualTo(activityId);
+        assertThat(activity.getParentActivityId()).isEqualTo(parentActivityId);
+        assertThat(activity.getLoopIndex()).isEqualTo(1);
+        assertThat(activity.getLoopTotal()).isEqualTo(3);
+    }
+
+    @Test
+    void countCompletedChildActivities_delegatesToRepository() {
+        UUID parentActivityId = UUID.randomUUID();
+        when(activityRepository.countByParentActivityIdAndStatus(parentActivityId, ActivityStatus.COMPLETED)).thenReturn(2L);
+
+        long count = dbService.countCompletedChildActivities(parentActivityId);
+
+        assertThat(count).isEqualTo(2L);
+    }
+
     private void stubActivityAndProcessInstance(UUID activityId, UUID processInstanceId) {
         ActivityEntity activity = new ActivityEntity();
         activity.setId(activityId);

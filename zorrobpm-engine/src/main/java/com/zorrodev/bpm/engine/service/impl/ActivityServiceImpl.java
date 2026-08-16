@@ -3,6 +3,7 @@ package com.zorrodev.bpm.engine.service.impl;
 import com.zorrodev.bpm.contract.model.ProcessDefinition;
 import com.zorrodev.bpm.contract.model.ProcessInstance;
 import com.zorrodev.bpm.contract.model.ProcessVariable;
+import com.zorrodev.bpm.contract.model.ProcessVariableType;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnConditionExpressionModel;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnElementExtensionModel;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnElementModel;
@@ -10,6 +11,7 @@ import com.zorrodev.bpm.engine.bpmn.model.BpmnElementType;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnFlowModel;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnProcessDefinitionModel;
 import com.zorrodev.bpm.engine.bpmn.model.ExclusiveGatewayExtensionModel;
+import com.zorrodev.bpm.engine.bpmn.model.MultiInstanceExtensionModel;
 import com.zorrodev.bpm.engine.dto.Activity;
 import com.zorrodev.bpm.contract.dto.Incident;
 import com.zorrodev.bpm.engine.dto.Token;
@@ -22,7 +24,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Service;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -37,6 +43,7 @@ public class ActivityServiceImpl implements ActivityService {
     private final BpmnService bpmnService;
     private final ScriptService scriptService;
     private final ServiceTaskEnqueueService serviceTaskEnqueueService;
+    private final ObjectMapper objectMapper;
 
     @Override
     public void execute(UUID processInstanceId, UUID tokenId, String bpmnElementId) {
@@ -58,7 +65,7 @@ public class ActivityServiceImpl implements ActivityService {
         } else if (type == BpmnElementType.SERVICE_TASK) {
             enterServiceTask(processInstanceId, tokenId, element);
         } else if (type == BpmnElementType.USER_TASK) {
-            enterUserTask(processInstanceId, tokenId, element);
+            enterUserTask(processInstanceId, tokenId, bpmn, element);
         } else if (type == BpmnElementType.EXCLUSIVE_GATEWAY) {
             processExclusiveGateway(processInstanceId, tokenId, bpmn, element);
         } else if (type == BpmnElementType.PARALLEL_GATEWAY) {
@@ -67,6 +74,17 @@ public class ActivityServiceImpl implements ActivityService {
             processCallActivity(processInstanceId, tokenId, bpmn, element);
         } else {
             log.info("Unsupported BpmnElementType: " + type);
+        }
+    }
+
+    private void advance(UUID processInstanceId, UUID tokenId, BpmnProcessDefinitionModel bpmn, BpmnElementModel bpmnElement) {
+        List<String> outgoings = bpmnElement.getOutgoing();
+        for (String outgoing : outgoings) {
+            processFlow(processInstanceId, tokenId, outgoing, false, null);
+            BpmnFlowModel flow = bpmn.getFlow(outgoing);
+            String targetRef = flow.getTargetRef();
+            BpmnElementModel target = bpmn.getElement(targetRef);
+            execute(processInstanceId, tokenId, bpmn, target);
         }
     }
 
@@ -87,7 +105,6 @@ public class ActivityServiceImpl implements ActivityService {
 
     private void processParallelGateway(UUID processInstanceId, UUID tokenId, BpmnProcessDefinitionModel bpmn, BpmnElementModel bpmnElement) {
         List<String> incomings = bpmnElement.getIncoming();
-        List<String> outgoings = bpmnElement.getOutgoing();
 
         if (incomings.size() == 1) {
             UUID activityId = dbService.createActivity(processInstanceId, tokenId, bpmnElement);
@@ -95,13 +112,7 @@ public class ActivityServiceImpl implements ActivityService {
 
             Token newToken = dbService.createToken(tokenId);
             UUID newTokenId = newToken.getId();
-            for (String outgoing : outgoings) {
-                processFlow(processInstanceId, newTokenId, outgoing, false, null);
-                BpmnFlowModel flow = bpmn.getFlow(outgoing);
-                String targetRef = flow.getTargetRef();
-                BpmnElementModel target = bpmn.getElement(targetRef);
-                execute(processInstanceId, newTokenId, bpmn, target);
-            }
+            advance(processInstanceId, newTokenId, bpmn, bpmnElement);
         } else if (incomings.size() > 1) {
             boolean reached = true;
 
@@ -118,13 +129,7 @@ public class ActivityServiceImpl implements ActivityService {
                 UUID oldTokenId = token.getParentId();
                 UUID activityId = dbService.createActivity(processInstanceId, oldTokenId, bpmnElement);
                 log.info("{}/{}: Entering and completing {}: {}/{}", processInstanceId, tokenId, bpmnElement.getType(), activityId, bpmnElement.getId());
-                for (String outgoing : outgoings) {
-                    processFlow(processInstanceId, oldTokenId, outgoing, false, null);
-                    BpmnFlowModel flow = bpmn.getFlow(outgoing);
-                    String targetRef = flow.getTargetRef();
-                    BpmnElementModel target = bpmn.getElement(targetRef);
-                    execute(processInstanceId, oldTokenId, bpmn, target);
-                }
+                advance(processInstanceId, oldTokenId, bpmn, bpmnElement);
             } else {
                 log.info("{}/{}: Parallel Gateway Not ready yet {}: {}", processInstanceId, tokenId, bpmnElement.getType(), bpmnElement.getId());
             }
@@ -198,26 +203,92 @@ public class ActivityServiceImpl implements ActivityService {
         BpmnProcessDefinitionModel bpmn = bpmnService.getProcessDefinitionModelById(processInstance.getProcessDefinitionId());
         BpmnElementModel bpmnElement = bpmn.getElement(activity.getBpmnElementId());
 
-        List<String> outgoings = bpmnElement.getOutgoing();
-        for (String outgoing : outgoings) {
-            processFlow(processInstanceId, tokenId, outgoing, false, null);
-            BpmnFlowModel flow = bpmn.getFlow(outgoing);
-            String targetRef = flow.getTargetRef();
-            BpmnElementModel target = bpmn.getElement(targetRef);
-            execute(processInstanceId, tokenId, bpmn, target);
-        }
+        advance(processInstanceId, tokenId, bpmn, bpmnElement);
     }
 
-    private void enterUserTask(UUID processInstanceId, UUID token, BpmnElementModel bpmnElement) {
+    private void enterUserTask(UUID processInstanceId, UUID token, BpmnProcessDefinitionModel bpmn, BpmnElementModel bpmnElement) {
+        MultiInstanceExtensionModel multiInstance = Optional.ofNullable(bpmnElement.getExtensions())
+            .map(BpmnElementExtensionModel::getMultiInstanceExtension)
+            .orElse(null);
+        if (multiInstance != null) {
+            enterMultiInstanceUserTask(processInstanceId, token, bpmn, bpmnElement, multiInstance);
+            return;
+        }
+
         UUID activityId = dbService.createActivity(processInstanceId, token, bpmnElement);
         dbService.createUserTask(activityId, bpmnElement);
 
         log.info("{}/{}: Entering {}: {}/{}", processInstanceId, token, bpmnElement.getType(), activityId, bpmnElement.getId());
     }
 
+    private void enterMultiInstanceUserTask(UUID processInstanceId, UUID token, BpmnProcessDefinitionModel bpmn, BpmnElementModel bpmnElement, MultiInstanceExtensionModel multiInstance) {
+        List<?> items = evaluateInputCollection(processInstanceId, multiInstance);
+        int total = items.size();
+
+        UUID scopeActivityId = dbService.createActivity(processInstanceId, token, bpmnElement, null, null, total);
+
+        log.info("{}/{}: Entering multi-instance {}: {}/{} with {} instances", processInstanceId, token, bpmnElement.getType(), scopeActivityId, bpmnElement.getId(), total);
+
+        if (multiInstance.getOutputCollection() != null) {
+            List<Object> results = new ArrayList<>(Collections.nCopies(total, null));
+            dbService.setVariables(processInstanceId, List.of(jsonVariable(multiInstance.getOutputCollection(), results)));
+        }
+
+        if (total == 0) {
+            dbService.completeActivity(scopeActivityId);
+            advance(processInstanceId, token, bpmn, bpmnElement);
+            return;
+        }
+
+        if (multiInstance.isSequential()) {
+            createMultiInstanceChild(processInstanceId, token, scopeActivityId, bpmnElement, items.get(0), 0, total);
+        } else {
+            for (int i = 0; i < total; i++) {
+                createMultiInstanceChild(processInstanceId, token, scopeActivityId, bpmnElement, items.get(i), i, total);
+            }
+        }
+    }
+
+    private void createMultiInstanceChild(UUID processInstanceId, UUID token, UUID scopeActivityId, BpmnElementModel bpmnElement, Object item, int index, int total) {
+        UUID activityId = dbService.createActivity(processInstanceId, token, bpmnElement, scopeActivityId, index, total);
+        dbService.createUserTask(activityId, bpmnElement, index, total, objectMapper.writeValueAsString(item));
+
+        log.info("{}/{}: Entering {}: {}/{} [{}/{}]", processInstanceId, token, bpmnElement.getType(), activityId, bpmnElement.getId(), index, total);
+    }
+
+    private List<?> evaluateInputCollection(UUID processInstanceId, MultiInstanceExtensionModel multiInstance) {
+        String expression = stripExpression(multiInstance.getInputCollection());
+        List<ProcessVariable> variables = dbService.getVariables(processInstanceId);
+        Object result = scriptService.evaluateExpression(expression, variables);
+        if (!(result instanceof List)) {
+            throw new IllegalStateException("Multi-instance inputCollection '" + multiInstance.getInputCollection() + "' did not evaluate to a list");
+        }
+        return (List<?>) result;
+    }
+
+    private static String stripExpression(String expression) {
+        if (expression == null || expression.isEmpty()) {
+            throw new IllegalStateException("Multi-instance expression is not set");
+        }
+        return expression.startsWith("=") ? expression.substring(1) : expression;
+    }
+
+    private ProcessVariable jsonVariable(String name, Object value) {
+        ProcessVariable variable = new ProcessVariable();
+        variable.setName(name);
+        variable.setType(ProcessVariableType.JSON);
+        variable.setValue(objectMapper.writeValueAsString(value));
+        return variable;
+    }
+
     @Override
     public void completeUserTask(UUID userTaskId, List<ProcessVariable> variables) {
         Activity activity = dbService.getActivity(userTaskId);
+        if (activity.getParentActivityId() != null) {
+            completeMultiInstanceUserTask(activity, variables);
+            return;
+        }
+
         UUID processInstanceId = activity.getProcessInstanceId();
         UUID token = activity.getToken();
 
@@ -231,14 +302,57 @@ public class ActivityServiceImpl implements ActivityService {
         BpmnProcessDefinitionModel bpmn = bpmnService.getProcessDefinitionModelById(processInstance.getProcessDefinitionId());
         BpmnElementModel bpmnElement = bpmn.getElement(activity.getBpmnElementId());
 
-        List<String> outgoings = bpmnElement.getOutgoing();
-        for (String outgoing : outgoings) {
-            processFlow(processInstanceId, token, outgoing, false, null);
-            BpmnFlowModel flow = bpmn.getFlow(outgoing);
-            String targetRef = flow.getTargetRef();
-            BpmnElementModel target = bpmn.getElement(targetRef);
-            execute(processInstanceId, token, bpmn, target);
+        advance(processInstanceId, token, bpmn, bpmnElement);
+    }
+
+    private void completeMultiInstanceUserTask(Activity activity, List<ProcessVariable> variables) {
+        UUID userTaskId = activity.getId();
+        UUID processInstanceId = activity.getProcessInstanceId();
+        UUID token = activity.getToken();
+
+        // Pessimistic lock on the scope row serializes concurrent sibling completions
+        // for both the outputCollection read-modify-write and the join count check.
+        Activity scope = dbService.getActivityForUpdate(activity.getParentActivityId());
+
+        dbService.setVariables(processInstanceId, variables);
+
+        ProcessInstance processInstance = dbService.getProcessInstance(processInstanceId);
+        BpmnProcessDefinitionModel bpmn = bpmnService.getProcessDefinitionModelById(processInstance.getProcessDefinitionId());
+        BpmnElementModel bpmnElement = bpmn.getElement(activity.getBpmnElementId());
+        MultiInstanceExtensionModel multiInstance = bpmnElement.getExtensions().getMultiInstanceExtension();
+
+        if (multiInstance.getOutputCollection() != null && multiInstance.getOutputElement() != null) {
+            Object out = scriptService.evaluateExpression(stripExpression(multiInstance.getOutputElement()), variables);
+            updateOutputCollection(processInstanceId, multiInstance.getOutputCollection(), activity.getLoopIndex(), out);
         }
+
+        dbService.completeActivity(userTaskId);
+        dbService.completeUserTask(userTaskId);
+
+        log.info("{}/{}: Completing {}: {}/{} [{}/{}]", processInstanceId, token, activity.getType(), userTaskId, activity.getBpmnElementId(), activity.getLoopIndex(), activity.getLoopTotal());
+
+        if (multiInstance.isSequential() && activity.getLoopIndex() + 1 < activity.getLoopTotal()) {
+            int nextIndex = activity.getLoopIndex() + 1;
+            List<?> items = evaluateInputCollection(processInstanceId, multiInstance);
+            createMultiInstanceChild(processInstanceId, token, scope.getId(), bpmnElement, items.get(nextIndex), nextIndex, activity.getLoopTotal());
+            return;
+        }
+
+        if (dbService.countCompletedChildActivities(scope.getId()) == scope.getLoopTotal()) {
+            dbService.completeActivity(scope.getId());
+            advance(processInstanceId, token, bpmn, bpmnElement);
+        }
+    }
+
+    private void updateOutputCollection(UUID processInstanceId, String outputCollection, int index, Object value) {
+        String json = dbService.getVariables(processInstanceId).stream()
+            .filter(variable -> outputCollection.equals(variable.getName()))
+            .map(ProcessVariable::getValue)
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException("Multi-instance outputCollection variable '" + outputCollection + "' is missing"));
+        List<Object> results = new ArrayList<>(objectMapper.readValue(json, new TypeReference<List<Object>>() {}));
+        results.set(index, value);
+        dbService.setVariables(processInstanceId, List.of(jsonVariable(outputCollection, results)));
     }
 
     @Override
@@ -333,17 +447,9 @@ public class ActivityServiceImpl implements ActivityService {
 
             log.info("{}/{}: Completing {}: {}/{}", parentProcessInstanceId, parentToken, parentActivity.getType(), parentActivityId, parentActivity.getBpmnElementId());
 
-            BpmnProcessDefinitionModel bpmn = bpmnService.getProcessDefinitionModelById(parentProcessDefinitionId);
             BpmnElementModel parentBpmnElement = parentBpmn.getElement(parentActivity.getBpmnElementId());
 
-            List<String> outgoings = parentBpmnElement.getOutgoing();
-            for (String outgoing : outgoings) {
-                processFlow(parentProcessInstanceId, parentToken, outgoing, false, null);
-                BpmnFlowModel flow = bpmn.getFlow(outgoing);
-                String targetRef = flow.getTargetRef();
-                BpmnElementModel target = bpmn.getElement(targetRef);
-                execute(parentProcessInstanceId, parentToken, parentBpmn, target);
-            }
+            advance(parentProcessInstanceId, parentToken, parentBpmn, parentBpmnElement);
         }
     }
 
@@ -353,14 +459,7 @@ public class ActivityServiceImpl implements ActivityService {
 
         log.info("{}/{}: Entering and completing {}: {}/{}", processInstanceId, tokenId, bpmnElement.getType(), activityId, bpmnElement.getId());
 
-        List<String> outgoings = bpmnElement.getOutgoing();
-        for (String outgoing : outgoings) {
-            processFlow(processInstanceId, tokenId, outgoing, false, null);
-            BpmnFlowModel flow = bpmn.getFlow(outgoing);
-            String targetRef = flow.getTargetRef();
-            BpmnElementModel target = bpmn.getElement(targetRef);
-            execute(processInstanceId, tokenId, bpmn, target);
-        }
+        advance(processInstanceId, tokenId, bpmn, bpmnElement);
     }
 
 }

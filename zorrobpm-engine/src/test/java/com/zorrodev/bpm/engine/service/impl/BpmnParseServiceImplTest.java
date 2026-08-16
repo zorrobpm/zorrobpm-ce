@@ -6,6 +6,7 @@ import com.zorrodev.bpm.engine.bpmn.model.BpmnElementModel;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnElementType;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnFlowModel;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnProcessDefinitionModel;
+import com.zorrodev.bpm.engine.bpmn.model.MultiInstanceExtensionModel;
 import com.zorrodev.bpm.engine.bpmn.model.ServiceTaskExtensionModel;
 import com.zorrodev.bpm.engine.service.BpmnParseService;
 import org.junit.jupiter.api.Test;
@@ -184,6 +185,38 @@ class BpmnParseServiceImplTest {
         assertThat(extension.getCandidateUsers()).isEqualTo("candidateUser1,candidateUser2");
         assertThat(extension.getCandidateGroups()).isEqualTo("candidateGroup1,candidateGroup2");
         assertThat(extension.getFormKey()).isEqualTo("formKey1");
+    }
+
+    @Test
+    void testProcess5MultiInstance() throws IOException {
+        // start event -> mi sequential user task -> mi parallel user task -> end event
+        String bpmnFile = "src/test/files/process5.bpmn";
+
+        String bpmnStr = Files.readString(Path.of(bpmnFile));
+
+        BpmnParseService service = new BpmnParseServiceImpl();
+        BpmnProcessDefinitionModel bpmn = service.parse(bpmnStr);
+
+        BpmnElementModel sequentialTask = bpmn.getElement("miSequentialTask");
+        assertThat(sequentialTask.getExtensions()).isNotNull();
+        MultiInstanceExtensionModel sequential = sequentialTask.getExtensions().getMultiInstanceExtension();
+        assertThat(sequential).isNotNull();
+        assertThat(sequential.isSequential()).isTrue();
+        assertThat(sequential.getInputCollection()).isEqualTo("=items");
+        assertThat(sequential.getInputElement()).isEqualTo("item");
+        assertThat(sequential.getOutputCollection()).isEqualTo("results");
+        assertThat(sequential.getOutputElement()).isEqualTo("=result");
+        assertThat(sequentialTask.getExtensions().getUserTaskExtension().getAssignee()).isEqualTo("assignee1");
+
+        BpmnElementModel parallelTask = bpmn.getElement("miParallelTask");
+        assertThat(parallelTask.getExtensions()).isNotNull();
+        MultiInstanceExtensionModel parallel = parallelTask.getExtensions().getMultiInstanceExtension();
+        assertThat(parallel).isNotNull();
+        assertThat(parallel.isSequential()).isFalse();
+        assertThat(parallel.getInputCollection()).isEqualTo("=users");
+        assertThat(parallel.getInputElement()).isEqualTo("user");
+        assertThat(parallel.getOutputCollection()).isNull();
+        assertThat(parallel.getOutputElement()).isNull();
     }
 
     @Test

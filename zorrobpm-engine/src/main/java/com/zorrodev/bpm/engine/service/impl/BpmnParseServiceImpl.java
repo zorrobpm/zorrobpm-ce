@@ -7,6 +7,8 @@ import com.zorrodev.bpm.engine.bpmn.model.TimerEventType;
 import com.zorrodev.bpm.engine.bpmn.xml.*;
 import com.zorrodev.bpm.engine.bpmn.xml.extension.CalledElementModel;
 import com.zorrodev.bpm.engine.bpmn.xml.extension.UserTaskExtensionModel;
+import com.zorrodev.bpm.engine.bpmn.xml.extension.ZeebeLoopCharacteristicsModel;
+import com.zorrodev.bpm.engine.bpmn.model.MultiInstanceExtensionModel;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnConditionExpressionModel;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnElementExtensionModel;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnElementModel;
@@ -177,8 +179,24 @@ public class BpmnParseServiceImpl implements BpmnParseService {
         element.setType(BpmnElementType.USER_TASK);
         element.setIncoming(userTask.getIncoming());
         element.setOutgoing(userTask.getOutgoing());
-        if (userTask.getExtensionElements() != null) {
+        if (userTask.getExtensionElements() != null || userTask.getMultiInstanceLoopCharacteristics() != null) {
             element.setExtensions(new BpmnElementExtensionModel());
+        }
+        if (userTask.getMultiInstanceLoopCharacteristics() != null) {
+            MultiInstanceExtensionModel multiInstance = new MultiInstanceExtensionModel();
+            multiInstance.setSequential(Boolean.TRUE.equals(userTask.getMultiInstanceLoopCharacteristics().getIsSequential()));
+            ZeebeLoopCharacteristicsModel loopCharacteristics = Optional.ofNullable(userTask.getMultiInstanceLoopCharacteristics().getExtensionElements())
+                .map(ExtensionElements::getLoopCharacteristics)
+                .orElse(null);
+            if (loopCharacteristics != null) {
+                multiInstance.setInputCollection(loopCharacteristics.getInputCollection());
+                multiInstance.setInputElement(loopCharacteristics.getInputElement());
+                multiInstance.setOutputCollection(loopCharacteristics.getOutputCollection());
+                multiInstance.setOutputElement(loopCharacteristics.getOutputElement());
+            }
+            element.getExtensions().setMultiInstanceExtension(multiInstance);
+        }
+        if (userTask.getExtensionElements() != null) {
             element.getExtensions().setUserTaskExtension(new UserTaskExtensionModel());
             if (userTask.getExtensionElements().getAssignmentDefinition() != null) {
                 element.getExtensions().getUserTaskExtension().setAssignee(userTask.getExtensionElements().getAssignmentDefinition().getAssignee());
