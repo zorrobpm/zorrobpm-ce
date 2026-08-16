@@ -85,6 +85,21 @@ public class QueryServiceImpl implements QueryService {
         if (query.getId() != null) {
             specifications.add(UserTaskRepository.byId(query.getId()));
         }
+        if (query.getAssignee() != null) {
+            specifications.add(UserTaskRepository.byAssignee(query.getAssignee()));
+        }
+        if (query.getAssigned() != null) {
+            specifications.add(UserTaskRepository.byAssigned(query.getAssigned()));
+        }
+        if (query.getCompleted() != null) {
+            specifications.add(UserTaskRepository.byCompleted(query.getCompleted()));
+        }
+        if (query.getCandidateGroup() != null) {
+            specifications.add(UserTaskRepository.byCandidateGroup(query.getCandidateGroup()));
+        }
+        if (query.getCandidateUser() != null) {
+            specifications.add(UserTaskRepository.byCandidateUser(query.getCandidateUser()));
+        }
         Specification<UserTaskEntity> all = Specification.allOf(specifications);
         return toDTO(userTaskRepository.findAll(all, PageRequest.of(query.getPageIndex(), query.getPageSize())), userTaskMapper::toDTO);
     }

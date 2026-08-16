@@ -9,6 +9,7 @@ import com.zorrodev.bpm.engine.bpmn.model.BpmnElementType;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnFlowModel;
 import com.zorrodev.bpm.engine.dto.Activity;
 import com.zorrodev.bpm.contract.dto.Incident;
+import com.zorrodev.bpm.contract.exception.UserTaskAlreadyAssignedException;
 import com.zorrodev.bpm.engine.dto.Token;
 import com.zorrodev.bpm.engine.entity.ActivityEntity;
 import com.zorrodev.bpm.engine.entity.ActivityStatus;
@@ -18,6 +19,10 @@ import com.zorrodev.bpm.engine.entity.ProcessInstanceEntity;
 import com.zorrodev.bpm.engine.entity.ProcessVariableEntity;
 import com.zorrodev.bpm.engine.entity.ServiceTaskEntity;
 import com.zorrodev.bpm.engine.entity.TokenEntity;
+import com.zorrodev.bpm.engine.bpmn.model.BpmnElementExtensionModel;
+import com.zorrodev.bpm.engine.bpmn.xml.extension.UserTaskExtensionModel;
+import com.zorrodev.bpm.engine.entity.UserTaskCandidateEntity;
+import com.zorrodev.bpm.engine.entity.UserTaskCandidateType;
 import com.zorrodev.bpm.engine.entity.UserTaskEntity;
 import com.zorrodev.bpm.engine.mapper.ProcessInstanceMapper;
 import com.zorrodev.bpm.engine.repository.ActivityRepository;
@@ -26,6 +31,7 @@ import com.zorrodev.bpm.engine.repository.ProcessDefinitionRepository;
 import com.zorrodev.bpm.engine.repository.ProcessInstanceRepository;
 import com.zorrodev.bpm.engine.repository.ServiceTaskRepository;
 import com.zorrodev.bpm.engine.repository.TokenRepository;
+import com.zorrodev.bpm.engine.repository.UserTaskCandidateRepository;
 import com.zorrodev.bpm.engine.repository.UserTaskRepository;
 import com.zorrodev.bpm.engine.repository.VariableRepository;
 import org.junit.jupiter.api.Test;
@@ -44,9 +50,11 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -57,6 +65,7 @@ class DBServiceImplTest {
     @Mock private ActivityRepository activityRepository;
     @Mock private ServiceTaskRepository serviceTaskRepository;
     @Mock private UserTaskRepository userTaskRepository;
+    @Mock private UserTaskCandidateRepository userTaskCandidateRepository;
     @Mock private VariableRepository variableRepository;
     @Mock private TokenRepository tokenRepository;
     @Mock private IncidentRepository incidentRepository;
@@ -211,7 +220,7 @@ class DBServiceImplTest {
         when(activityRepository.findById(activityId)).thenReturn(Optional.of(activity));
         when(processInstanceRepository.findById(processInstanceId)).thenReturn(Optional.of(pi));
 
-        dbService.createUserTask(activityId);
+        dbService.createUserTask(activityId, new BpmnElementModel());
 
         ArgumentCaptor<UserTaskEntity> captor = ArgumentCaptor.forClass(UserTaskEntity.class);
         verify(userTaskRepository).save(captor.capture());
@@ -220,6 +229,116 @@ class DBServiceImplTest {
         assertThat(saved.getBpmnElementId()).isEqualTo("ut1");
         assertThat(saved.getProcessInstanceId()).isEqualTo(processInstanceId);
         assertThat(saved.getProcessDefinitionId()).isEqualTo(processDefinitionId);
+        assertThat(saved.getAssignee()).isNull();
+        assertThat(saved.getFormKey()).isNull();
+        verifyNoInteractions(userTaskCandidateRepository);
+    }
+
+    @Test
+    void createUserTask_persistsAssigneeFormKeyAndCandidates() {
+        UUID activityId = UUID.randomUUID();
+        UUID processInstanceId = UUID.randomUUID();
+        stubActivityAndProcessInstance(activityId, processInstanceId);
+
+        BpmnElementModel element = newUserTaskElement("john", "formKey1", "g1, g2", "u1");
+
+        dbService.createUserTask(activityId, element);
+
+        ArgumentCaptor<UserTaskEntity> taskCaptor = ArgumentCaptor.forClass(UserTaskEntity.class);
+        verify(userTaskRepository).save(taskCaptor.capture());
+        assertThat(taskCaptor.getValue().getAssignee()).isEqualTo("john");
+        assertThat(taskCaptor.getValue().getFormKey()).isEqualTo("formKey1");
+
+        List<UserTaskCandidateEntity> candidates = capturedCandidates();
+        assertThat(candidates).hasSize(3);
+        assertThat(candidates).allSatisfy(c -> {
+            assertThat(c.getId()).isNotNull();
+            assertThat(c.getTaskId()).isEqualTo(activityId);
+        });
+        assertThat(candidates)
+            .extracting(UserTaskCandidateEntity::getCandidateType, UserTaskCandidateEntity::getCandidateValue)
+            .containsExactlyInAnyOrder(
+                tuple(UserTaskCandidateType.GROUP, "g1"),
+                tuple(UserTaskCandidateType.GROUP, "g2"),
+                tuple(UserTaskCandidateType.USER, "u1"));
+    }
+
+    @Test
+    void createUserTask_trimsAndDropsEmptyCandidateTokens() {
+        UUID activityId = UUID.randomUUID();
+        stubActivityAndProcessInstance(activityId, UUID.randomUUID());
+
+        BpmnElementModel element = newUserTaskElement(null, null, "a,,b, ", null);
+
+        dbService.createUserTask(activityId, element);
+
+        assertThat(capturedCandidates())
+            .extracting(UserTaskCandidateEntity::getCandidateValue)
+            .containsExactlyInAnyOrder("a", "b");
+    }
+
+    @Test
+    void createUserTask_blankCandidates_savesNoCandidates() {
+        UUID activityId = UUID.randomUUID();
+        stubActivityAndProcessInstance(activityId, UUID.randomUUID());
+
+        BpmnElementModel element = newUserTaskElement("john", null, " ", null);
+
+        dbService.createUserTask(activityId, element);
+
+        verifyNoInteractions(userTaskCandidateRepository);
+    }
+
+    @Test
+    void createUserTask_nullElement_savesTaskWithoutExtensionData() {
+        UUID activityId = UUID.randomUUID();
+        stubActivityAndProcessInstance(activityId, UUID.randomUUID());
+
+        dbService.createUserTask(activityId, null);
+
+        ArgumentCaptor<UserTaskEntity> captor = ArgumentCaptor.forClass(UserTaskEntity.class);
+        verify(userTaskRepository).save(captor.capture());
+        assertThat(captor.getValue().getAssignee()).isNull();
+        verifyNoInteractions(userTaskCandidateRepository);
+    }
+
+    private void stubActivityAndProcessInstance(UUID activityId, UUID processInstanceId) {
+        ActivityEntity activity = new ActivityEntity();
+        activity.setId(activityId);
+        activity.setProcessInstanceId(processInstanceId);
+        activity.setBpmnElementId("ut1");
+        activity.setCreatedAt(Instant.now());
+
+        ProcessInstanceEntity pi = new ProcessInstanceEntity();
+        pi.setId(processInstanceId);
+        pi.setProcessDefinitionId(UUID.randomUUID());
+
+        when(activityRepository.findById(activityId)).thenReturn(Optional.of(activity));
+        when(processInstanceRepository.findById(processInstanceId)).thenReturn(Optional.of(pi));
+    }
+
+    private static BpmnElementModel newUserTaskElement(String assignee, String formKey, String candidateGroups, String candidateUsers) {
+        UserTaskExtensionModel ext = new UserTaskExtensionModel();
+        ext.setAssignee(assignee);
+        ext.setFormKey(formKey);
+        ext.setCandidateGroups(candidateGroups);
+        ext.setCandidateUsers(candidateUsers);
+
+        BpmnElementExtensionModel extensions = new BpmnElementExtensionModel();
+        extensions.setUserTaskExtension(ext);
+
+        BpmnElementModel element = new BpmnElementModel();
+        element.setId("ut1");
+        element.setType(BpmnElementType.USER_TASK);
+        element.setExtensions(extensions);
+        return element;
+    }
+
+    private List<UserTaskCandidateEntity> capturedCandidates() {
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<UserTaskCandidateEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(userTaskCandidateRepository).saveAll(captor.capture());
+        return captor.getValue();
     }
 
     @Test
@@ -234,6 +353,68 @@ class DBServiceImplTest {
         UUID id = UUID.randomUUID();
         dbService.completeUserTask(id);
         verify(userTaskRepository).setCompletedAt(eq(id), any(Instant.class));
+    }
+
+    @Test
+    void claimUserTask_setsAssignee() {
+        UUID id = UUID.randomUUID();
+        UserTaskEntity task = new UserTaskEntity();
+        task.setId(id);
+        when(userTaskRepository.findById(id)).thenReturn(Optional.of(task));
+
+        dbService.claimUserTask(id, "alice");
+
+        ArgumentCaptor<UserTaskEntity> captor = ArgumentCaptor.forClass(UserTaskEntity.class);
+        verify(userTaskRepository).save(captor.capture());
+        assertThat(captor.getValue().getAssignee()).isEqualTo("alice");
+    }
+
+    @Test
+    void claimUserTask_alreadyAssigned_throwsConflict() {
+        UUID id = UUID.randomUUID();
+        UserTaskEntity task = new UserTaskEntity();
+        task.setId(id);
+        task.setAssignee("alice");
+        when(userTaskRepository.findById(id)).thenReturn(Optional.of(task));
+
+        assertThatThrownBy(() -> dbService.claimUserTask(id, "bob"))
+            .isInstanceOf(UserTaskAlreadyAssignedException.class)
+            .hasMessageContaining("alice");
+    }
+
+    @Test
+    void claimUserTask_completedTask_throwsConflict() {
+        UUID id = UUID.randomUUID();
+        UserTaskEntity task = new UserTaskEntity();
+        task.setId(id);
+        task.setCompletedAt(Instant.now());
+        when(userTaskRepository.findById(id)).thenReturn(Optional.of(task));
+
+        assertThatThrownBy(() -> dbService.claimUserTask(id, "bob"))
+            .isInstanceOf(UserTaskAlreadyAssignedException.class);
+    }
+
+    @Test
+    void claimUserTask_throwsWhenMissing() {
+        UUID id = UUID.randomUUID();
+        when(userTaskRepository.findById(id)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> dbService.claimUserTask(id, "bob")).isInstanceOf(NoSuchElementException.class);
+    }
+
+    @Test
+    void unclaimUserTask_clearsAssignee() {
+        UUID id = UUID.randomUUID();
+        UserTaskEntity task = new UserTaskEntity();
+        task.setId(id);
+        task.setAssignee("alice");
+        when(userTaskRepository.findById(id)).thenReturn(Optional.of(task));
+
+        dbService.unclaimUserTask(id);
+
+        ArgumentCaptor<UserTaskEntity> captor = ArgumentCaptor.forClass(UserTaskEntity.class);
+        verify(userTaskRepository).save(captor.capture());
+        assertThat(captor.getValue().getAssignee()).isNull();
     }
 
     @Test

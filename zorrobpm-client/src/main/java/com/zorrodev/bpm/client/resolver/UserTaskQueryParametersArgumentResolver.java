@@ -21,6 +21,15 @@ public class UserTaskQueryParametersArgumentResolver implements HttpServiceArgum
             if (parameters.getAssigned() != null) {
                 requestValues.addRequestParameter("assigned", parameters.getAssigned().toString());
             }
+            if (parameters.getCandidateGroup() != null) {
+                requestValues.addRequestParameter("candidateGroup", parameters.getCandidateGroup());
+            }
+            if (parameters.getCandidateUser() != null) {
+                requestValues.addRequestParameter("candidateUser", parameters.getCandidateUser());
+            }
+            if (parameters.getCompleted() != null) {
+                requestValues.addRequestParameter("completed", parameters.getCompleted().toString());
+            }
             if (parameters.getProcessInstanceId() != null) {
                 requestValues.addRequestParameter("processInstanceId", parameters.getProcessInstanceId().toString());
             }

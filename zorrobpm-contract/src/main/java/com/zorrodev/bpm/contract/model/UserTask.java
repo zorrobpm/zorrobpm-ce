@@ -4,6 +4,8 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Getter
@@ -17,4 +19,7 @@ public class UserTask {
     private String formKey;
     private Instant createdAt;
     private Instant completedAt;
+    private String assignee;
+    private List<String> candidateGroups = new ArrayList<>();
+    private List<String> candidateUsers = new ArrayList<>();
 }

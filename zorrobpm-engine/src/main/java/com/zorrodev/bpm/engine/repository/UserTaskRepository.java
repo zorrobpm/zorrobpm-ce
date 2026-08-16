@@ -1,7 +1,11 @@
 package com.zorrodev.bpm.engine.repository;
 
 import com.zorrodev.bpm.contract.model.BpmnElementStatistics;
+import com.zorrodev.bpm.engine.entity.UserTaskCandidateEntity;
+import com.zorrodev.bpm.engine.entity.UserTaskCandidateType;
 import com.zorrodev.bpm.engine.entity.UserTaskEntity;
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -24,6 +28,42 @@ public interface UserTaskRepository extends JpaRepository<UserTaskEntity, UUID>,
 
     static Specification<UserTaskEntity> byId(UUID id) {
         return (root, query, criteriaBuilder) -> criteriaBuilder.equal(root.get("id"), id);
+    }
+
+    static Specification<UserTaskEntity> byAssignee(String assignee) {
+        return (root, query, criteriaBuilder) -> criteriaBuilder.equal(root.get("assignee"), assignee);
+    }
+
+    static Specification<UserTaskEntity> byAssigned(boolean assigned) {
+        return (root, query, criteriaBuilder) -> assigned
+            ? criteriaBuilder.isNotNull(root.get("assignee"))
+            : criteriaBuilder.isNull(root.get("assignee"));
+    }
+
+    static Specification<UserTaskEntity> byCompleted(boolean completed) {
+        return (root, query, criteriaBuilder) -> completed
+            ? criteriaBuilder.isNotNull(root.get("completedAt"))
+            : criteriaBuilder.isNull(root.get("completedAt"));
+    }
+
+    static Specification<UserTaskEntity> byCandidateGroup(String group) {
+        return byCandidate(UserTaskCandidateType.GROUP, group);
+    }
+
+    static Specification<UserTaskEntity> byCandidateUser(String user) {
+        return byCandidate(UserTaskCandidateType.USER, user);
+    }
+
+    private static Specification<UserTaskEntity> byCandidate(UserTaskCandidateType type, String value) {
+        return (root, query, criteriaBuilder) -> {
+            Subquery<UUID> subquery = query.subquery(UUID.class);
+            Root<UserTaskCandidateEntity> candidate = subquery.from(UserTaskCandidateEntity.class);
+            subquery.select(candidate.get("taskId")).where(
+                criteriaBuilder.equal(candidate.get("taskId"), root.get("id")),
+                criteriaBuilder.equal(candidate.get("candidateType"), type),
+                criteriaBuilder.equal(candidate.get("candidateValue"), value));
+            return criteriaBuilder.exists(subquery);
+        };
     }
 
     @Modifying

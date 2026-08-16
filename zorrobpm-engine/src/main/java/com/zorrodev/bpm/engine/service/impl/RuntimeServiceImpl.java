@@ -66,6 +66,22 @@ public class RuntimeServiceImpl implements RuntimeService {
     }
 
     @Override
+    public IdDTO claimUserTask(UUID id, String assignee) {
+        dbService.claimUserTask(id, assignee);
+        IdDTO result = new IdDTO();
+        result.setId(id);
+        return result;
+    }
+
+    @Override
+    public IdDTO unclaimUserTask(UUID id) {
+        dbService.unclaimUserTask(id);
+        IdDTO result = new IdDTO();
+        result.setId(id);
+        return result;
+    }
+
+    @Override
     public IdDTO resolveIncident(UUID id, List<ProcessVariable> variables) {
         return null;
     }

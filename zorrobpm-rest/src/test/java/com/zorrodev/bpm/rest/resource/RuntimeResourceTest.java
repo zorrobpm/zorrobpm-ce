@@ -1,5 +1,6 @@
 package com.zorrodev.bpm.rest.resource;
 
+import com.zorrodev.bpm.contract.dto.ClaimTaskDTO;
 import com.zorrodev.bpm.contract.dto.CompleteTaskDTO;
 import com.zorrodev.bpm.contract.dto.IdDTO;
 import com.zorrodev.bpm.contract.dto.ResolveIncidentDTO;
@@ -15,7 +16,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -71,6 +76,50 @@ class RuntimeResourceTest {
 
         assertThat(result.getId()).isSameAs(expected.getId());
         verify(runtimeService).completeUserTask(id, vars);
+    }
+
+    @Test
+    void claimUserTask_delegatesToService() {
+        UUID id = UUID.randomUUID();
+        ClaimTaskDTO dto = new ClaimTaskDTO();
+        dto.setAssignee("alice");
+        IdDTO expected = new IdDTO(id);
+        when(runtimeService.claimUserTask(id, "alice")).thenReturn(toEngineDTO(expected));
+
+        IdDTO result = resource.claimUserTask(id, dto);
+
+        assertThat(result.getId()).isSameAs(expected.getId());
+        verify(runtimeService).claimUserTask(id, "alice");
+    }
+
+    @Test
+    void claimUserTask_blankAssignee_returnsBadRequest() {
+        ClaimTaskDTO dto = new ClaimTaskDTO();
+        dto.setAssignee(" ");
+
+        assertThatThrownBy(() -> resource.claimUserTask(UUID.randomUUID(), dto))
+            .isInstanceOf(ResponseStatusException.class)
+            .satisfies(e -> assertThat(((ResponseStatusException) e).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+    }
+
+    @Test
+    void claimUserTask_nullAssignee_returnsBadRequest() {
+        ClaimTaskDTO dto = new ClaimTaskDTO();
+
+        assertThatThrownBy(() -> resource.claimUserTask(UUID.randomUUID(), dto))
+            .isInstanceOf(ResponseStatusException.class);
+    }
+
+    @Test
+    void unclaimUserTask_delegatesToService() {
+        UUID id = UUID.randomUUID();
+        IdDTO expected = new IdDTO(id);
+        when(runtimeService.unclaimUserTask(id)).thenReturn(toEngineDTO(expected));
+
+        IdDTO result = resource.unclaimUserTask(id);
+
+        assertThat(result.getId()).isSameAs(expected.getId());
+        verify(runtimeService).unclaimUserTask(id);
     }
 
     @Test

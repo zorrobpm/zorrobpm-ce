@@ -1,5 +1,6 @@
 package com.zorrodev.bpm.contract;
 
+import com.zorrodev.bpm.contract.dto.ClaimTaskDTO;
 import com.zorrodev.bpm.contract.dto.CompleteTaskDTO;
 import com.zorrodev.bpm.contract.dto.IdDTO;
 import com.zorrodev.bpm.contract.dto.ResolveIncidentDTO;
@@ -20,6 +21,12 @@ public interface RuntimeContract {
 
     @PostExchange("/user-tasks/{id}/complete")
     IdDTO completeUserTask(@PathVariable UUID id, @RequestBody CompleteTaskDTO dto);
+
+    @PostExchange("/user-tasks/{id}/claim")
+    IdDTO claimUserTask(@PathVariable UUID id, @RequestBody ClaimTaskDTO dto);
+
+    @PostExchange("/user-tasks/{id}/unclaim")
+    IdDTO unclaimUserTask(@PathVariable UUID id);
 
     @PostExchange("/incidents/{id}/resolve")
     IdDTO resolveIncident(@PathVariable UUID id, @RequestBody ResolveIncidentDTO dto);

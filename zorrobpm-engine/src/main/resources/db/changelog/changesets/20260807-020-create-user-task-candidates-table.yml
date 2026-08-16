@@ -1,0 +1,47 @@
+databaseChangeLog:
+  - logicalFilePath: 20260807-020
+  - changeSet:
+      id: 20260807-020
+      author: zorrodev
+      changes:
+        - createTable:
+            tableName: user_task_candidates
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_user_task_candidates
+              - column:
+                  name: task_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_user_task_candidates__task_id
+                    referencedTableName: user_tasks
+                    referencedColumnNames: id
+              - column:
+                  name: candidate_type
+                  type: varchar(16)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: candidate_value
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+        - createIndex:
+            tableName: user_task_candidates
+            indexName: ix_user_task_candidates__candidate_type_candidate_value
+            columns:
+              - column:
+                  name: candidate_type
+              - column:
+                  name: candidate_value
+        - createIndex:
+            tableName: user_task_candidates
+            indexName: ix_user_task_candidates__task_id
+            columns:
+              - column:
+                  name: task_id

@@ -1,11 +1,14 @@
 package com.zorrodev.bpm.engine.service.impl;
 
+import com.zorrodev.bpm.contract.exception.UserTaskAlreadyAssignedException;
 import com.zorrodev.bpm.contract.model.ProcessDefinition;
 import com.zorrodev.bpm.contract.model.ProcessInstance;
 import com.zorrodev.bpm.contract.model.ProcessVariable;
+import com.zorrodev.bpm.engine.bpmn.model.BpmnElementExtensionModel;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnElementModel;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnElementType;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnFlowModel;
+import com.zorrodev.bpm.engine.bpmn.xml.extension.UserTaskExtensionModel;
 import com.zorrodev.bpm.engine.dto.Activity;
 import com.zorrodev.bpm.contract.dto.Incident;
 import com.zorrodev.bpm.engine.dto.Token;
@@ -17,6 +20,8 @@ import com.zorrodev.bpm.engine.entity.ProcessInstanceEntity;
 import com.zorrodev.bpm.engine.entity.ProcessVariableEntity;
 import com.zorrodev.bpm.engine.entity.ServiceTaskEntity;
 import com.zorrodev.bpm.engine.entity.TokenEntity;
+import com.zorrodev.bpm.engine.entity.UserTaskCandidateEntity;
+import com.zorrodev.bpm.engine.entity.UserTaskCandidateType;
 import com.zorrodev.bpm.engine.entity.UserTaskEntity;
 import com.zorrodev.bpm.engine.mapper.ProcessInstanceMapper;
 import com.zorrodev.bpm.engine.repository.ActivityRepository;
@@ -25,6 +30,7 @@ import com.zorrodev.bpm.engine.repository.ProcessDefinitionRepository;
 import com.zorrodev.bpm.engine.repository.ProcessInstanceRepository;
 import com.zorrodev.bpm.engine.repository.ServiceTaskRepository;
 import com.zorrodev.bpm.engine.repository.TokenRepository;
+import com.zorrodev.bpm.engine.repository.UserTaskCandidateRepository;
 import com.zorrodev.bpm.engine.repository.UserTaskRepository;
 import com.zorrodev.bpm.engine.repository.VariableRepository;
 import com.zorrodev.bpm.engine.service.DBService;
@@ -34,6 +40,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
@@ -48,6 +55,7 @@ public class DBServiceImpl implements DBService {
     private final ActivityRepository activityRepository;
     private final ServiceTaskRepository serviceTaskRepository;
     private final UserTaskRepository userTaskRepository;
+    private final UserTaskCandidateRepository userTaskCandidateRepository;
     private final VariableRepository variableRepository;
     private final TokenRepository tokenRepository;
     private final IncidentRepository incidentRepository;
@@ -133,7 +141,7 @@ public class DBServiceImpl implements DBService {
     }
 
     @Override
-    public void createUserTask(UUID activityId) {
+    public void createUserTask(UUID activityId, BpmnElementModel element) {
         ActivityEntity activity = activityRepository.findById(activityId).orElseThrow();
         UserTaskEntity entity = new UserTaskEntity();
         entity.setId(activity.getId());
@@ -144,7 +152,48 @@ public class DBServiceImpl implements DBService {
         ProcessInstanceEntity pi = processInstanceRepository.findById(activity.getProcessInstanceId()).orElseThrow();
         entity.setProcessDefinitionId(pi.getProcessDefinitionId());
 
+        UserTaskExtensionModel extension = Optional.ofNullable(element)
+            .map(BpmnElementModel::getExtensions)
+            .map(BpmnElementExtensionModel::getUserTaskExtension)
+            .orElse(null);
+        if (extension != null) {
+            entity.setAssignee(extension.getAssignee());
+            entity.setFormKey(extension.getFormKey());
+        }
+
         userTaskRepository.save(entity);
+
+        if (extension != null) {
+            List<UserTaskCandidateEntity> candidates = new LinkedList<>();
+            for (String value : splitCandidates(extension.getCandidateGroups())) {
+                candidates.add(newCandidate(entity.getId(), UserTaskCandidateType.GROUP, value));
+            }
+            for (String value : splitCandidates(extension.getCandidateUsers())) {
+                candidates.add(newCandidate(entity.getId(), UserTaskCandidateType.USER, value));
+            }
+            if (!candidates.isEmpty()) {
+                userTaskCandidateRepository.saveAll(candidates);
+            }
+        }
+    }
+
+    private static List<String> splitCandidates(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(raw.split(","))
+            .map(String::trim)
+            .filter(s -> !s.isEmpty())
+            .toList();
+    }
+
+    private static UserTaskCandidateEntity newCandidate(UUID taskId, UserTaskCandidateType type, String value) {
+        UserTaskCandidateEntity candidate = new UserTaskCandidateEntity();
+        candidate.setId(UUID.randomUUID());
+        candidate.setTaskId(taskId);
+        candidate.setCandidateType(type);
+        candidate.setCandidateValue(value);
+        return candidate;
     }
 
     @Override
@@ -155,6 +204,26 @@ public class DBServiceImpl implements DBService {
     @Override
     public void completeUserTask(UUID userTaskId) {
         userTaskRepository.setCompletedAt(userTaskId, Instant.now());
+    }
+
+    @Override
+    public void claimUserTask(UUID userTaskId, String assignee) {
+        UserTaskEntity entity = userTaskRepository.findById(userTaskId).orElseThrow();
+        if (entity.getCompletedAt() != null) {
+            throw new UserTaskAlreadyAssignedException("User task " + userTaskId + " is already completed");
+        }
+        if (entity.getAssignee() != null) {
+            throw new UserTaskAlreadyAssignedException("User task " + userTaskId + " is already assigned to " + entity.getAssignee());
+        }
+        entity.setAssignee(assignee);
+        userTaskRepository.save(entity);
+    }
+
+    @Override
+    public void unclaimUserTask(UUID userTaskId) {
+        UserTaskEntity entity = userTaskRepository.findById(userTaskId).orElseThrow();
+        entity.setAssignee(null);
+        userTaskRepository.save(entity);
     }
 
     @Override

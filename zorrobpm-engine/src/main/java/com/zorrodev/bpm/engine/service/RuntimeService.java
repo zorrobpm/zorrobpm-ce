@@ -18,5 +18,9 @@ public interface RuntimeService {
 
     IdDTO completeUserTask(UUID id, List<ProcessVariable> variables);
 
+    IdDTO claimUserTask(UUID id, String assignee);
+
+    IdDTO unclaimUserTask(UUID id);
+
     IdDTO resolveIncident(UUID id, List<ProcessVariable> variables);
 }
