@@ -13,6 +13,7 @@
         <bpmn:extensionElements>
           <zeebe:loopCharacteristics inputCollection="=items" inputElement="item" outputCollection="results" outputElement="=result" />
         </bpmn:extensionElements>
+        <bpmn:completionCondition xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">=numberOfCompletedInstances &gt;= 2</bpmn:completionCondition>
       </bpmn:multiInstanceLoopCharacteristics>
       <bpmn:incoming>flow1</bpmn:incoming>
       <bpmn:outgoing>flow2</bpmn:outgoing>

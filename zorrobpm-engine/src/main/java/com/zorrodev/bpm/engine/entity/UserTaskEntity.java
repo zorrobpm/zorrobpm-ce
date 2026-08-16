@@ -26,4 +26,5 @@ public class UserTaskEntity {
     private Integer loopIndex;
     private Integer loopTotal;
     private String loopItem;
+    private Instant canceledAt;
 }

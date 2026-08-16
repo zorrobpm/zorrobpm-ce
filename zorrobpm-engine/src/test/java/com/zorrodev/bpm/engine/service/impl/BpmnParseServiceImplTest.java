@@ -206,6 +206,7 @@ class BpmnParseServiceImplTest {
         assertThat(sequential.getInputElement()).isEqualTo("item");
         assertThat(sequential.getOutputCollection()).isEqualTo("results");
         assertThat(sequential.getOutputElement()).isEqualTo("=result");
+        assertThat(sequential.getCompletionCondition()).isEqualTo("=numberOfCompletedInstances >= 2");
         assertThat(sequentialTask.getExtensions().getUserTaskExtension().getAssignee()).isEqualTo("assignee1");
 
         BpmnElementModel parallelTask = bpmn.getElement("miParallelTask");
@@ -217,6 +218,7 @@ class BpmnParseServiceImplTest {
         assertThat(parallel.getInputElement()).isEqualTo("user");
         assertThat(parallel.getOutputCollection()).isNull();
         assertThat(parallel.getOutputElement()).isNull();
+        assertThat(parallel.getCompletionCondition()).isNull();
     }
 
     @Test

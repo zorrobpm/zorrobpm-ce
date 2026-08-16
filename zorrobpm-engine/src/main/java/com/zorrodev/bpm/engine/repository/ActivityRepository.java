@@ -26,4 +26,6 @@ public interface ActivityRepository extends JpaRepository<ActivityEntity, UUID> 
     Optional<ActivityEntity> findByIdForUpdate(UUID id);
 
     long countByParentActivityIdAndStatus(UUID parentActivityId, ActivityStatus status);
+
+    List<ActivityEntity> findByParentActivityIdAndStatus(UUID parentActivityId, ActivityStatus status);
 }

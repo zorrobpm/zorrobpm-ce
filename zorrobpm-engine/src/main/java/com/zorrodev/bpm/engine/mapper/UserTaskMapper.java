@@ -34,6 +34,7 @@ public class UserTaskMapper {
         dto.setLoopIndex(entity.getLoopIndex());
         dto.setLoopTotal(entity.getLoopTotal());
         dto.setLoopItem(entity.getLoopItem());
+        dto.setCanceledAt(entity.getCanceledAt());
 
         List<UserTaskCandidateEntity> candidates = userTaskCandidateRepository.findByTaskId(entity.getId());
         dto.setCandidateGroups(candidateValues(candidates, UserTaskCandidateType.GROUP));
