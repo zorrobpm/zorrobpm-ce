@@ -20,6 +20,7 @@ import com.zorrodev.bpm.engine.entity.ProcessVariableEntity;
 import com.zorrodev.bpm.engine.entity.ServiceTaskEntity;
 import com.zorrodev.bpm.engine.entity.TokenEntity;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnElementExtensionModel;
+import com.zorrodev.bpm.engine.bpmn.model.ServiceTaskExtensionModel;
 import com.zorrodev.bpm.engine.bpmn.xml.extension.UserTaskExtensionModel;
 import com.zorrodev.bpm.engine.entity.UserTaskCandidateEntity;
 import com.zorrodev.bpm.engine.entity.UserTaskCandidateType;
@@ -397,6 +398,44 @@ class DBServiceImplTest {
 
         assertThatThrownBy(() -> dbService.claimUserTask(id, "alice"))
             .isInstanceOf(UserTaskAlreadyAssignedException.class);
+    }
+
+    @Test
+    void createServiceTask_persistsJobType() {
+        UUID activityId = UUID.randomUUID();
+        UUID processInstanceId = UUID.randomUUID();
+        stubActivityAndProcessInstance(activityId, processInstanceId);
+
+        ServiceTaskExtensionModel ext = new ServiceTaskExtensionModel();
+        ext.setJob("job1");
+        BpmnElementExtensionModel extensions = new BpmnElementExtensionModel();
+        extensions.setServiceTaskExtension(ext);
+        BpmnElementModel element = new BpmnElementModel();
+        element.setId("st1");
+        element.setType(BpmnElementType.SERVICE_TASK);
+        element.setExtensions(extensions);
+
+        dbService.createServiceTask(activityId, element);
+
+        ArgumentCaptor<ServiceTaskEntity> captor = ArgumentCaptor.forClass(ServiceTaskEntity.class);
+        verify(serviceTaskRepository).save(captor.capture());
+        assertThat(captor.getValue().getJobType()).isEqualTo("job1");
+    }
+
+    @Test
+    void createServiceTask_withoutExtensions_savesNullJobType() {
+        UUID activityId = UUID.randomUUID();
+        UUID processInstanceId = UUID.randomUUID();
+        stubActivityAndProcessInstance(activityId, processInstanceId);
+        BpmnElementModel element = new BpmnElementModel();
+        element.setId("st1");
+        element.setType(BpmnElementType.SERVICE_TASK);
+
+        dbService.createServiceTask(activityId, element);
+
+        ArgumentCaptor<ServiceTaskEntity> captor = ArgumentCaptor.forClass(ServiceTaskEntity.class);
+        verify(serviceTaskRepository).save(captor.capture());
+        assertThat(captor.getValue().getJobType()).isNull();
     }
 
     private void stubActivityAndProcessInstance(UUID activityId, UUID processInstanceId) {

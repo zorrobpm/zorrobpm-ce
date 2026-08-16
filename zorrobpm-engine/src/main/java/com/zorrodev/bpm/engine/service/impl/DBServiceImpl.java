@@ -8,6 +8,7 @@ import com.zorrodev.bpm.engine.bpmn.model.BpmnElementExtensionModel;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnElementModel;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnElementType;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnFlowModel;
+import com.zorrodev.bpm.engine.bpmn.model.ServiceTaskExtensionModel;
 import com.zorrodev.bpm.engine.bpmn.xml.extension.UserTaskExtensionModel;
 import com.zorrodev.bpm.engine.dto.Activity;
 import com.zorrodev.bpm.contract.dto.Incident;
@@ -135,6 +136,11 @@ public class DBServiceImpl implements DBService {
 
     @Override
     public void createServiceTask(UUID activityId) {
+        createServiceTask(activityId, null);
+    }
+
+    @Override
+    public void createServiceTask(UUID activityId, BpmnElementModel element) {
         ActivityEntity activity = activityRepository.findById(activityId).orElseThrow();
         ServiceTaskEntity entity = new ServiceTaskEntity();
         entity.setId(activity.getId());
@@ -144,6 +150,12 @@ public class DBServiceImpl implements DBService {
 
         ProcessInstanceEntity pi = processInstanceRepository.findById(activity.getProcessInstanceId()).orElseThrow();
         entity.setProcessDefinitionId(pi.getProcessDefinitionId());
+
+        entity.setJobType(Optional.ofNullable(element)
+            .map(BpmnElementModel::getExtensions)
+            .map(BpmnElementExtensionModel::getServiceTaskExtension)
+            .map(ServiceTaskExtensionModel::getJob)
+            .orElse(null));
 
         serviceTaskRepository.save(entity);
     }

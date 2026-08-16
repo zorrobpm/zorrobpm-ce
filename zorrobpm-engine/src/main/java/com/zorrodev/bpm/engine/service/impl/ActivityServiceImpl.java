@@ -180,7 +180,7 @@ public class ActivityServiceImpl implements ActivityService {
 
     private void enterServiceTask(UUID processInstanceId, UUID token, BpmnElementModel bpmnElement) {
         UUID activityId = dbService.createActivity(processInstanceId, token, bpmnElement);
-        dbService.createServiceTask(activityId);
+        dbService.createServiceTask(activityId, bpmnElement);
 
         log.info("{}/{}: Entering {}: {}/{}", processInstanceId, token, bpmnElement.getType(), activityId, bpmnElement.getId());
 

@@ -29,6 +29,8 @@ public interface DBService {
 
     void createServiceTask(UUID activityId);
 
+    void createServiceTask(UUID activityId, BpmnElementModel element);
+
     void completeServiceTask(UUID serviceTaskId);
 
     void createUserTask(UUID activityId, BpmnElementModel element);

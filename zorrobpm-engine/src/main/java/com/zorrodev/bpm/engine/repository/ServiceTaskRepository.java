@@ -26,6 +26,16 @@ public interface ServiceTaskRepository extends JpaRepository<ServiceTaskEntity, 
         return (root, query, criteriaBuilder) -> criteriaBuilder.equal(root.get("id"), id);
     }
 
+    static Specification<ServiceTaskEntity> byJobType(String jobType) {
+        return (root, query, criteriaBuilder) -> criteriaBuilder.equal(root.get("jobType"), jobType);
+    }
+
+    static Specification<ServiceTaskEntity> byCompleted(boolean completed) {
+        return (root, query, criteriaBuilder) -> completed
+            ? criteriaBuilder.isNotNull(root.get("completedAt"))
+            : criteriaBuilder.isNull(root.get("completedAt"));
+    }
+
     List<ServiceTaskEntity> findByProcessInstanceId(UUID processInstanceId);
 
     @Modifying(flushAutomatically = true, clearAutomatically = true)

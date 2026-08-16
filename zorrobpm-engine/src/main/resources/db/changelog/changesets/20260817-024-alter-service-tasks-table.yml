@@ -1,0 +1,12 @@
+databaseChangeLog:
+  - logicalFilePath: 20260817-024
+  - changeSet:
+      id: 20260817-024
+      author: zorrodev
+      changes:
+        - addColumn:
+            tableName: service_tasks
+            columns:
+              - column:
+                  name: job_type
+                  type: varchar(255)

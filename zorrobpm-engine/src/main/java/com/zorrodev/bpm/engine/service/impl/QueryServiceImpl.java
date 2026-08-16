@@ -67,6 +67,12 @@ public class QueryServiceImpl implements QueryService {
         if (query.getId() != null) {
             specifications.add(ServiceTaskRepository.byId(query.getId()));
         }
+        if (query.getJobType() != null) {
+            specifications.add(ServiceTaskRepository.byJobType(query.getJobType()));
+        }
+        if (query.getCompleted() != null) {
+            specifications.add(ServiceTaskRepository.byCompleted(query.getCompleted()));
+        }
         Specification<ServiceTaskEntity> all = Specification.allOf(specifications);
         return toDTO(serviceTaskRepository.findAll(all, PageRequest.of(query.getPageIndex(), query.getPageSize())), serviceTaskMapper::toDTO);
     }
