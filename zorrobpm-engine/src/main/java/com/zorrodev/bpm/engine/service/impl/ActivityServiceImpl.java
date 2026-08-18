@@ -12,8 +12,10 @@ import com.zorrodev.bpm.engine.bpmn.model.BpmnFlowModel;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnProcessDefinitionModel;
 import com.zorrodev.bpm.engine.bpmn.model.ExclusiveGatewayExtensionModel;
 import com.zorrodev.bpm.engine.bpmn.model.MultiInstanceExtensionModel;
+import com.zorrodev.bpm.engine.bpmn.xml.extension.UserTaskExtensionModel;
 import com.zorrodev.bpm.engine.dto.Activity;
 import com.zorrodev.bpm.contract.dto.Incident;
+import com.zorrodev.bpm.engine.dto.ResolvedAssignment;
 import com.zorrodev.bpm.engine.dto.Token;
 import com.zorrodev.bpm.engine.service.ActivityService;
 import com.zorrodev.bpm.engine.service.BpmnService;
@@ -28,11 +30,13 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 @Slf4j
 @Service
@@ -216,7 +220,9 @@ public class ActivityServiceImpl implements ActivityService {
         }
 
         UUID activityId = dbService.createActivity(processInstanceId, token, bpmnElement);
-        dbService.createUserTask(activityId, bpmnElement);
+        ResolvedAssignment assignment = resolveAssignment(userTaskExtension(bpmnElement),
+            () -> dbService.getVariables(processInstanceId));
+        dbService.createUserTask(activityId, bpmnElement, assignment);
 
         log.info("{}/{}: Entering {}: {}/{}", processInstanceId, token, bpmnElement.getType(), activityId, bpmnElement.getId());
     }
@@ -251,7 +257,9 @@ public class ActivityServiceImpl implements ActivityService {
 
     private void createMultiInstanceChild(UUID processInstanceId, UUID token, UUID scopeActivityId, BpmnElementModel bpmnElement, Object item, int index, int total) {
         UUID activityId = dbService.createActivity(processInstanceId, token, bpmnElement, scopeActivityId, index, total);
-        dbService.createUserTask(activityId, bpmnElement, index, total, objectMapper.writeValueAsString(item));
+        ResolvedAssignment assignment = resolveAssignment(userTaskExtension(bpmnElement),
+            () -> multiInstanceVariables(processInstanceId, bpmnElement, item, index));
+        dbService.createUserTask(activityId, bpmnElement, index, total, objectMapper.writeValueAsString(item), assignment);
 
         log.info("{}/{}: Entering {}: {}/{} [{}/{}]", processInstanceId, token, bpmnElement.getType(), activityId, bpmnElement.getId(), index, total);
     }
@@ -279,6 +287,91 @@ public class ActivityServiceImpl implements ActivityService {
         variable.setType(ProcessVariableType.JSON);
         variable.setValue(objectMapper.writeValueAsString(value));
         return variable;
+    }
+
+    private static UserTaskExtensionModel userTaskExtension(BpmnElementModel element) {
+        return Optional.ofNullable(element.getExtensions())
+            .map(BpmnElementExtensionModel::getUserTaskExtension)
+            .orElse(null);
+    }
+
+    private List<ProcessVariable> multiInstanceVariables(UUID processInstanceId, BpmnElementModel bpmnElement, Object item, int index) {
+        List<ProcessVariable> variables = new ArrayList<>(dbService.getVariables(processInstanceId));
+        MultiInstanceExtensionModel multiInstance = bpmnElement.getExtensions().getMultiInstanceExtension();
+        if (multiInstance.getInputElement() != null) {
+            variables.add(jsonVariable(multiInstance.getInputElement(), item));
+        }
+        ProcessVariable loopCounter = new ProcessVariable();
+        loopCounter.setName("loopCounter");
+        loopCounter.setType(ProcessVariableType.LONG);
+        loopCounter.setValue(String.valueOf(index + 1));
+        variables.add(loopCounter);
+        return variables;
+    }
+
+    private ResolvedAssignment resolveAssignment(UserTaskExtensionModel extension, Supplier<List<ProcessVariable>> variablesSupplier) {
+        if (extension == null) {
+            return ResolvedAssignment.EMPTY;
+        }
+        boolean hasExpression = isExpression(extension.getAssignee())
+            || isExpression(extension.getCandidateUsers())
+            || isExpression(extension.getCandidateGroups());
+        List<ProcessVariable> variables = hasExpression ? variablesSupplier.get() : null;
+        return new ResolvedAssignment(
+            resolveAssignee(extension.getAssignee(), variables),
+            resolveCandidates(extension.getCandidateUsers(), variables),
+            resolveCandidates(extension.getCandidateGroups(), variables));
+    }
+
+    private String resolveAssignee(String raw, List<ProcessVariable> variables) {
+        if (!isExpression(raw)) {
+            return raw;
+        }
+        Object result = scriptService.evaluateExpression(stripExpression(raw), variables);
+        if (result != null && !(result instanceof String)) {
+            throw new IllegalStateException("Assignee expression '" + raw + "' did not evaluate to a string");
+        }
+        return (String) result;
+    }
+
+    private List<String> resolveCandidates(String raw, List<ProcessVariable> variables) {
+        if (!isExpression(raw)) {
+            return splitCandidates(raw);
+        }
+        Object result = scriptService.evaluateExpression(stripExpression(raw), variables);
+        if (result == null) {
+            return List.of();
+        }
+        if (result instanceof String value) {
+            return splitCandidates(value);
+        }
+        if (result instanceof List<?> values) {
+            List<String> candidates = new ArrayList<>();
+            for (Object value : values) {
+                if (!(value instanceof String candidate)) {
+                    throw new IllegalStateException("Candidate expression '" + raw + "' must evaluate to a list of strings");
+                }
+                if (!candidate.isBlank()) {
+                    candidates.add(candidate.trim());
+                }
+            }
+            return candidates;
+        }
+        throw new IllegalStateException("Candidate expression '" + raw + "' did not evaluate to a string or list of strings");
+    }
+
+    private static boolean isExpression(String value) {
+        return value != null && value.startsWith("=");
+    }
+
+    private static List<String> splitCandidates(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(raw.split(","))
+            .map(String::trim)
+            .filter(s -> !s.isEmpty())
+            .toList();
     }
 
     @Override

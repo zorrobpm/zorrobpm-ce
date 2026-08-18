@@ -12,6 +12,7 @@ import com.zorrodev.bpm.engine.bpmn.model.ServiceTaskExtensionModel;
 import com.zorrodev.bpm.engine.bpmn.xml.extension.UserTaskExtensionModel;
 import com.zorrodev.bpm.engine.dto.Activity;
 import com.zorrodev.bpm.contract.dto.Incident;
+import com.zorrodev.bpm.engine.dto.ResolvedAssignment;
 import com.zorrodev.bpm.engine.dto.Token;
 import com.zorrodev.bpm.engine.entity.ActivityEntity;
 import com.zorrodev.bpm.engine.entity.ActivityStatus;
@@ -41,7 +42,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
@@ -161,12 +161,12 @@ public class DBServiceImpl implements DBService {
     }
 
     @Override
-    public void createUserTask(UUID activityId, BpmnElementModel element) {
-        createUserTask(activityId, element, null, null, null);
+    public void createUserTask(UUID activityId, BpmnElementModel element, ResolvedAssignment assignment) {
+        createUserTask(activityId, element, null, null, null, assignment);
     }
 
     @Override
-    public void createUserTask(UUID activityId, BpmnElementModel element, Integer loopIndex, Integer loopTotal, String loopItem) {
+    public void createUserTask(UUID activityId, BpmnElementModel element, Integer loopIndex, Integer loopTotal, String loopItem, ResolvedAssignment assignment) {
         ActivityEntity activity = activityRepository.findById(activityId).orElseThrow();
         UserTaskEntity entity = new UserTaskEntity();
         entity.setId(activity.getId());
@@ -182,37 +182,28 @@ public class DBServiceImpl implements DBService {
             .map(BpmnElementExtensionModel::getUserTaskExtension)
             .orElse(null);
         if (extension != null) {
-            entity.setAssignee(extension.getAssignee());
             entity.setFormKey(extension.getFormKey());
         }
+        if (assignment == null) {
+            assignment = ResolvedAssignment.EMPTY;
+        }
+        entity.setAssignee(assignment.assignee());
         entity.setLoopIndex(loopIndex);
         entity.setLoopTotal(loopTotal);
         entity.setLoopItem(loopItem);
 
         userTaskRepository.save(entity);
 
-        if (extension != null) {
-            List<UserTaskCandidateEntity> candidates = new LinkedList<>();
-            for (String value : splitCandidates(extension.getCandidateGroups())) {
-                candidates.add(newCandidate(entity.getId(), UserTaskCandidateType.GROUP, value));
-            }
-            for (String value : splitCandidates(extension.getCandidateUsers())) {
-                candidates.add(newCandidate(entity.getId(), UserTaskCandidateType.USER, value));
-            }
-            if (!candidates.isEmpty()) {
-                userTaskCandidateRepository.saveAll(candidates);
-            }
+        List<UserTaskCandidateEntity> candidates = new LinkedList<>();
+        for (String value : assignment.candidateGroups()) {
+            candidates.add(newCandidate(entity.getId(), UserTaskCandidateType.GROUP, value));
         }
-    }
-
-    private static List<String> splitCandidates(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return List.of();
+        for (String value : assignment.candidateUsers()) {
+            candidates.add(newCandidate(entity.getId(), UserTaskCandidateType.USER, value));
         }
-        return Arrays.stream(raw.split(","))
-            .map(String::trim)
-            .filter(s -> !s.isEmpty())
-            .toList();
+        if (!candidates.isEmpty()) {
+            userTaskCandidateRepository.saveAll(candidates);
+        }
     }
 
     private static UserTaskCandidateEntity newCandidate(UUID taskId, UserTaskCandidateType type, String value) {

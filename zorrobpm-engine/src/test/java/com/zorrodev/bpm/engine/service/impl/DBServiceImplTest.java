@@ -10,6 +10,7 @@ import com.zorrodev.bpm.engine.bpmn.model.BpmnFlowModel;
 import com.zorrodev.bpm.engine.dto.Activity;
 import com.zorrodev.bpm.contract.dto.Incident;
 import com.zorrodev.bpm.contract.exception.UserTaskAlreadyAssignedException;
+import com.zorrodev.bpm.engine.dto.ResolvedAssignment;
 import com.zorrodev.bpm.engine.dto.Token;
 import com.zorrodev.bpm.engine.entity.ActivityEntity;
 import com.zorrodev.bpm.engine.entity.ActivityStatus;
@@ -221,7 +222,7 @@ class DBServiceImplTest {
         when(activityRepository.findById(activityId)).thenReturn(Optional.of(activity));
         when(processInstanceRepository.findById(processInstanceId)).thenReturn(Optional.of(pi));
 
-        dbService.createUserTask(activityId, new BpmnElementModel());
+        dbService.createUserTask(activityId, new BpmnElementModel(), ResolvedAssignment.EMPTY);
 
         ArgumentCaptor<UserTaskEntity> captor = ArgumentCaptor.forClass(UserTaskEntity.class);
         verify(userTaskRepository).save(captor.capture());
@@ -242,8 +243,9 @@ class DBServiceImplTest {
         stubActivityAndProcessInstance(activityId, processInstanceId);
 
         BpmnElementModel element = newUserTaskElement("john", "formKey1", "g1, g2", "u1");
+        ResolvedAssignment assignment = new ResolvedAssignment("john", List.of("u1"), List.of("g1", "g2"));
 
-        dbService.createUserTask(activityId, element);
+        dbService.createUserTask(activityId, element, assignment);
 
         ArgumentCaptor<UserTaskEntity> taskCaptor = ArgumentCaptor.forClass(UserTaskEntity.class);
         verify(userTaskRepository).save(taskCaptor.capture());
@@ -265,28 +267,17 @@ class DBServiceImplTest {
     }
 
     @Test
-    void createUserTask_trimsAndDropsEmptyCandidateTokens() {
+    void createUserTask_nullAssignment_savesTaskWithoutAssigneeAndCandidates() {
         UUID activityId = UUID.randomUUID();
         stubActivityAndProcessInstance(activityId, UUID.randomUUID());
 
-        BpmnElementModel element = newUserTaskElement(null, null, "a,,b, ", null);
+        BpmnElementModel element = newUserTaskElement("john", null, "g1", "u1");
 
-        dbService.createUserTask(activityId, element);
+        dbService.createUserTask(activityId, element, null);
 
-        assertThat(capturedCandidates())
-            .extracting(UserTaskCandidateEntity::getCandidateValue)
-            .containsExactlyInAnyOrder("a", "b");
-    }
-
-    @Test
-    void createUserTask_blankCandidates_savesNoCandidates() {
-        UUID activityId = UUID.randomUUID();
-        stubActivityAndProcessInstance(activityId, UUID.randomUUID());
-
-        BpmnElementModel element = newUserTaskElement("john", null, " ", null);
-
-        dbService.createUserTask(activityId, element);
-
+        ArgumentCaptor<UserTaskEntity> captor = ArgumentCaptor.forClass(UserTaskEntity.class);
+        verify(userTaskRepository).save(captor.capture());
+        assertThat(captor.getValue().getAssignee()).isNull();
         verifyNoInteractions(userTaskCandidateRepository);
     }
 
@@ -295,7 +286,7 @@ class DBServiceImplTest {
         UUID activityId = UUID.randomUUID();
         stubActivityAndProcessInstance(activityId, UUID.randomUUID());
 
-        dbService.createUserTask(activityId, null);
+        dbService.createUserTask(activityId, null, ResolvedAssignment.EMPTY);
 
         ArgumentCaptor<UserTaskEntity> captor = ArgumentCaptor.forClass(UserTaskEntity.class);
         verify(userTaskRepository).save(captor.capture());
@@ -331,7 +322,7 @@ class DBServiceImplTest {
         stubActivityAndProcessInstance(activityId, processInstanceId);
         BpmnElementModel element = newUserTaskElement("alice", "form1", null, null);
 
-        dbService.createUserTask(activityId, element, 1, 3, "\"a\"");
+        dbService.createUserTask(activityId, element, 1, 3, "\"a\"", new ResolvedAssignment("alice", List.of(), List.of()));
 
         ArgumentCaptor<UserTaskEntity> captor = ArgumentCaptor.forClass(UserTaskEntity.class);
         verify(userTaskRepository).save(captor.capture());

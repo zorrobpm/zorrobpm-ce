@@ -6,6 +6,7 @@ import com.zorrodev.bpm.contract.model.ProcessVariable;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnElementModel;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnFlowModel;
 import com.zorrodev.bpm.engine.dto.Activity;
+import com.zorrodev.bpm.engine.dto.ResolvedAssignment;
 import com.zorrodev.bpm.contract.dto.Incident;
 import com.zorrodev.bpm.engine.dto.Token;
 import org.jspecify.annotations.NonNull;
@@ -33,9 +34,9 @@ public interface DBService {
 
     void completeServiceTask(UUID serviceTaskId);
 
-    void createUserTask(UUID activityId, BpmnElementModel element);
+    void createUserTask(UUID activityId, BpmnElementModel element, ResolvedAssignment assignment);
 
-    void createUserTask(UUID activityId, BpmnElementModel element, Integer loopIndex, Integer loopTotal, String loopItem);
+    void createUserTask(UUID activityId, BpmnElementModel element, Integer loopIndex, Integer loopTotal, String loopItem, ResolvedAssignment assignment);
 
     void completeUserTask(UUID serviceTaskId);
 
