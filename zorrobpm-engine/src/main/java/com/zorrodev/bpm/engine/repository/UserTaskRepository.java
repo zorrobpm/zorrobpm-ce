@@ -30,6 +30,14 @@ public interface UserTaskRepository extends JpaRepository<UserTaskEntity, UUID>,
         return (root, query, criteriaBuilder) -> criteriaBuilder.equal(root.get("id"), id);
     }
 
+    static Specification<UserTaskEntity> byBpmnElementId(String bpmnElementId) {
+        return (root, query, criteriaBuilder) -> criteriaBuilder.equal(root.get("bpmnElementId"), bpmnElementId);
+    }
+
+    static Specification<UserTaskEntity> byFormKey(String formKey) {
+        return (root, query, criteriaBuilder) -> criteriaBuilder.equal(root.get("formKey"), formKey);
+    }
+
     static Specification<UserTaskEntity> byAssignee(String assignee) {
         return (root, query, criteriaBuilder) -> criteriaBuilder.equal(root.get("assignee"), assignee);
     }

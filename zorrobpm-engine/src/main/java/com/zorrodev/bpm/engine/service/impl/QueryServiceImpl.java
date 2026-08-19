@@ -91,6 +91,12 @@ public class QueryServiceImpl implements QueryService {
         if (query.getId() != null) {
             specifications.add(UserTaskRepository.byId(query.getId()));
         }
+        if (query.getBpmnElementId() != null) {
+            specifications.add(UserTaskRepository.byBpmnElementId(query.getBpmnElementId()));
+        }
+        if (query.getFormKey() != null) {
+            specifications.add(UserTaskRepository.byFormKey(query.getFormKey()));
+        }
         if (query.getAssignee() != null) {
             specifications.add(UserTaskRepository.byAssignee(query.getAssignee()));
         }

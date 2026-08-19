@@ -7,6 +7,7 @@
     <bpmn:userTask id="approveTask" name="Approve Task">
       <bpmn:extensionElements>
         <zeebe:assignmentDefinition assignee="=approver" candidateGroups="managers" />
+        <zeebe:formDefinition formKey="approve-form" />
       </bpmn:extensionElements>
       <bpmn:incoming>flow1</bpmn:incoming>
       <bpmn:outgoing>flow2</bpmn:outgoing>

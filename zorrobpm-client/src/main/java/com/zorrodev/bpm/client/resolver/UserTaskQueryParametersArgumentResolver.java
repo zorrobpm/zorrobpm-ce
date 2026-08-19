@@ -33,6 +33,12 @@ public class UserTaskQueryParametersArgumentResolver implements HttpServiceArgum
             if (parameters.getProcessInstanceId() != null) {
                 requestValues.addRequestParameter("processInstanceId", parameters.getProcessInstanceId().toString());
             }
+            if (parameters.getBpmnElementId() != null) {
+                requestValues.addRequestParameter("bpmnElementId", parameters.getBpmnElementId());
+            }
+            if (parameters.getFormKey() != null) {
+                requestValues.addRequestParameter("formKey", parameters.getFormKey());
+            }
             return true;
         }
         return false;

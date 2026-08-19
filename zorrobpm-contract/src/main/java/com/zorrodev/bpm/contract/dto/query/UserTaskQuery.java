@@ -9,6 +9,8 @@ import java.util.UUID;
 @Setter
 public class UserTaskQuery extends BaseQuery {
     private UUID processInstanceId;
+    private String bpmnElementId;
+    private String formKey;
     private String assignee;
     private String candidateGroup;
     private String candidateUser;
