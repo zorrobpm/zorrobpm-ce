@@ -83,6 +83,9 @@ public class RuntimeServiceImpl implements RuntimeService {
 
     @Override
     public IdDTO resolveIncident(UUID id, List<ProcessVariable> variables) {
-        return null;
+        activityService.resolveIncident(id, variables);
+        IdDTO result = new IdDTO();
+        result.setId(id);
+        return result;
     }
 }

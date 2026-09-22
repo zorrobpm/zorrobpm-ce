@@ -17,4 +17,8 @@ public interface IncidentRepository extends JpaRepository<IncidentEntity, UUID>,
     @Query("SELECT e.bpmnElementId AS bpmnElementId, COUNT(e.id) AS count FROM UserTaskEntity e WHERE e.processInstanceId = :processInstanceId GROUP BY e.bpmnElementId")
     List<BpmnElementStatistics> findStatsByProcessInstanceId(UUID processInstanceId);
 
+    List<IncidentEntity> findByActivityIdAndCompletedAtIsNull(UUID activityId);
+
+    boolean existsByActivityIdAndCompletedAtIsNull(UUID activityId);
+
 }

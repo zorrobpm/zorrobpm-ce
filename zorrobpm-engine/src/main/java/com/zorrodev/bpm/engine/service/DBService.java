@@ -9,9 +9,11 @@ import com.zorrodev.bpm.engine.dto.Activity;
 import com.zorrodev.bpm.engine.dto.ResolvedAssignment;
 import com.zorrodev.bpm.contract.dto.Incident;
 import com.zorrodev.bpm.engine.dto.Token;
+import com.zorrodev.bpm.engine.entity.ActivityStatus;
 import org.jspecify.annotations.NonNull;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface DBService {
@@ -71,4 +73,16 @@ public interface DBService {
     UUID createIncident(UUID activityId, String message);
 
     Incident getIncident(UUID incidentId);
+
+    void resolveIncident(UUID incidentId);
+
+    void resolveOpenIncidents(UUID activityId);
+
+    boolean hasOpenIncident(UUID activityId);
+
+    void setActivityStatus(UUID activityId, ActivityStatus status);
+
+    void terminateActivity(UUID activityId);
+
+    Optional<Activity> findOpenActivity(UUID tokenId, String bpmnElementId);
 }

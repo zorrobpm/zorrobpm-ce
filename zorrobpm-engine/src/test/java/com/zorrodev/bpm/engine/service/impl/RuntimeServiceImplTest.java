@@ -126,8 +126,13 @@ class RuntimeServiceImplTest {
     }
 
     @Test
-    void resolveIncident_returnsNull() {
-        IdDTO result = runtimeService.resolveIncident(UUID.randomUUID(), List.of());
-        assertThat(result).isNull();
+    void resolveIncident_delegatesAndReturnsIncidentId() {
+        UUID id = UUID.randomUUID();
+        List<ProcessVariable> vars = List.of();
+
+        IdDTO result = runtimeService.resolveIncident(id, vars);
+
+        assertThat(result.getId()).isEqualTo(id);
+        verify(activityService).resolveIncident(id, vars);
     }
 }

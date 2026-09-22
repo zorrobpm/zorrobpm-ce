@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_incidents" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="incident-gateway" name="Incident Gateway" isExecutable="true">
+    <bpmn:startEvent id="startEvent">
+      <bpmn:outgoing>flow1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="review" name="Review">
+      <bpmn:incoming>flow1</bpmn:incoming>
+      <bpmn:outgoing>flow2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="xor" default="flowSmall">
+      <bpmn:incoming>flow2</bpmn:incoming>
+      <bpmn:outgoing>flowSmall</bpmn:outgoing>
+      <bpmn:outgoing>flowBig</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="small" name="Small">
+      <bpmn:incoming>flowSmall</bpmn:incoming>
+      <bpmn:outgoing>flow3</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="big" name="Big">
+      <bpmn:incoming>flowBig</bpmn:incoming>
+      <bpmn:outgoing>flow4</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="endSmall">
+      <bpmn:incoming>flow3</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="endBig">
+      <bpmn:incoming>flow4</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow1" sourceRef="startEvent" targetRef="review" />
+    <bpmn:sequenceFlow id="flow2" sourceRef="review" targetRef="xor" />
+    <bpmn:sequenceFlow id="flowSmall" sourceRef="xor" targetRef="small" />
+    <bpmn:sequenceFlow id="flowBig" sourceRef="xor" targetRef="big">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=amount &gt; &gt; 100</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow3" sourceRef="small" targetRef="endSmall" />
+    <bpmn:sequenceFlow id="flow4" sourceRef="big" targetRef="endBig" />
+  </bpmn:process>
+</bpmn:definitions>

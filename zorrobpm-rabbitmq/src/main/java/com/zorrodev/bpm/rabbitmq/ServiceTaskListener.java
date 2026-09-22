@@ -4,6 +4,7 @@ import com.zorrodev.bpm.exchange.JobDetailModel;
 import com.zorrodev.bpm.exchange.ServiceTaskCompleteData;
 import com.zorrodev.bpm.exchange.ServiceTaskCompleted;
 import com.zorrodev.bpm.exchange.ServiceTaskEnqueued;
+import com.zorrodev.bpm.exchange.ServiceTaskFailed;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.AmqpAdmin;
@@ -41,6 +42,14 @@ public class ServiceTaskListener {
 
     @RabbitListener(queuesToDeclare = @org.springframework.amqp.rabbit.annotation.Queue("zorrobpm.complete-service-task"))
     public void on(ServiceTaskCompleteData data) {
+        if ("FAILURE".equals(data.getStatus())) {
+            log.info("Service task failure message received - {}: {}", data.getServiceTaskId(), data.getMessage());
+            ServiceTaskFailed serviceTaskFailed = new ServiceTaskFailed();
+            serviceTaskFailed.setServiceTaskId(data.getServiceTaskId());
+            serviceTaskFailed.setMessage(data.getMessage());
+            publisher.publishEvent(serviceTaskFailed);
+            return;
+        }
         log.info("Service task to complete message received - {}", data.getServiceTaskId());
         ServiceTaskCompleted serviceTaskCompleted = new ServiceTaskCompleted();
         serviceTaskCompleted.setServiceTaskId(data.getServiceTaskId());

@@ -19,7 +19,13 @@ public interface ActivityRepository extends JpaRepository<ActivityEntity, UUID> 
     @Query("UPDATE ActivityEntity e SET e.status = :status, e.completedAt = :completedAt WHERE e.id = :id")
     void setStatusAndCompletedAt(UUID id, ActivityStatus status, Instant completedAt);
 
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("UPDATE ActivityEntity e SET e.status = :status WHERE e.id = :id")
+    void setStatus(UUID id, ActivityStatus status);
+
     List<ActivityEntity> findByTokenAndBpmnElementId(UUID token, String bpmnElementId);
+
+    Optional<ActivityEntity> findFirstByTokenAndBpmnElementIdAndParentActivityIdIsNullAndCompletedAtIsNullOrderByCreatedAtDesc(UUID token, String bpmnElementId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT e FROM ActivityEntity e WHERE e.id = :id")
