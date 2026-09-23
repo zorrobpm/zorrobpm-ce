@@ -1,1 +1,2 @@
 *.bpmn text eof=crlf
+*.sh text eol=lf

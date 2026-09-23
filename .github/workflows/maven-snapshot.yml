@@ -1,10 +1,15 @@
-name: Publish to Maven Central
+name: Publish Snapshot to Maven Central
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
   workflow_dispatch:
+
+# One publication per branch at a time; a newer push waits and supersedes queued ones.
+concurrency:
+  group: maven-snapshot-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   publish:
@@ -26,23 +31,19 @@ jobs:
           gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
 
-      - name: Verify version is not SNAPSHOT
+      - name: Verify version is SNAPSHOT
         run: |
           VERSION=$(mvn -q -Dexec.executable=echo -Dexec.args='${project.version}' --non-recursive exec:exec)
           echo "Project version: $VERSION"
-          if [[ "$VERSION" == *-SNAPSHOT ]]; then
-            echo "::error::Maven Central does not accept SNAPSHOT versions. Bump the version in pom.xml before tagging."
+          if [[ "$VERSION" != *-SNAPSHOT ]]; then
+            echo "::error::Snapshot publishing accepts only -SNAPSHOT versions, got $VERSION. Releases are published by pushing a v* tag."
             exit 1
           fi
-        env:
-          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
 
-      - name: Build all modules into local repository
-        run: mvn -B install -DskipTests
-        env:
-          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+      - name: Build and test all modules
+        run: mvn -B install
 
-      - name: Publish each module to Maven Central
+      - name: Publish snapshot of each module
         run: bash .github/scripts/publish-modules.sh
         env:
           MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
