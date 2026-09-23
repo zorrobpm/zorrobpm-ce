@@ -18,6 +18,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.UUID;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
@@ -73,5 +75,14 @@ class QueryResourceTest {
         when(queryService.findIncidents(query)).thenReturn(expected);
 
         assertThat(resource.getProcessInstances(query)).isSameAs(expected);
+    }
+
+    @Test
+    void getIncident_delegates() {
+        UUID id = UUID.randomUUID();
+        Incident expected = new Incident();
+        when(queryService.getIncident(id)).thenReturn(expected);
+
+        assertThat(resource.getIncident(id)).isSameAs(expected);
     }
 }

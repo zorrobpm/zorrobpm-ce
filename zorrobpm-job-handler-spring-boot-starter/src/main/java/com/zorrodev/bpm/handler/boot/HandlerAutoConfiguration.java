@@ -51,23 +51,38 @@ public class HandlerAutoConfiguration {
                 ObjectMapper mapper = new ObjectMapper();
                 JobDetailModel model = mapper.readValue(message.getBody(), JobDetailModel.class);
 
-                List<ProcessVariable> result = handler.handleJob(model).stream().map(x -> {
-                    ProcessVariable v = new ProcessVariable();
-                    v.setName(x.getName());
-                    v.setValue(x.getValue());
-                    v.setType(x.getType().toString());
-                    return v;
-                }).toList();
-
-                ServiceTaskCompleteData completeData = new ServiceTaskCompleteData();
-                completeData.setServiceTaskId(model.getServiceTaskId());
-                completeData.setStatus("SUCCESS");
-                completeData.setVariables(result);
+                ServiceTaskCompleteData completeData = handle(handler, model);
                 rabbitTemplate.setMessageConverter(new JacksonJsonMessageConverter());
                 rabbitTemplate.convertAndSend("zorrobpm.complete-service-task", completeData);
             });
             container.start();
         }
 
+    }
+
+    /**
+     * Runs the handler and builds the message for the engine: SUCCESS with the handler's
+     * variables, or FAILURE with the error text when the handler throws.
+     */
+    static ServiceTaskCompleteData handle(JobHandler handler, JobDetailModel model) {
+        ServiceTaskCompleteData completeData = new ServiceTaskCompleteData();
+        completeData.setServiceTaskId(model.getServiceTaskId());
+        try {
+            List<ProcessVariable> result = handler.handleJob(model).stream().map(x -> {
+                ProcessVariable v = new ProcessVariable();
+                v.setName(x.getName());
+                v.setValue(x.getValue());
+                v.setType(x.getType().toString());
+                return v;
+            }).toList();
+            completeData.setStatus("SUCCESS");
+            completeData.setVariables(result);
+        } catch (Exception e) {
+            log.error("Job {} failed for service task {}", handler.getJob(), model.getServiceTaskId(), e);
+            completeData.setStatus("FAILURE");
+            completeData.setMessage(e.getClass().getName() + ": " + e.getMessage());
+            completeData.setVariables(List.of());
+        }
+        return completeData;
     }
 }

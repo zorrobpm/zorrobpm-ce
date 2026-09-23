@@ -1,5 +1,7 @@
 package com.zorrodev.bpm.engine.service.impl;
 
+import com.zorrodev.bpm.contract.exception.EngineException;
+import com.zorrodev.bpm.contract.exception.IncidentAlreadyResolvedException;
 import com.zorrodev.bpm.contract.model.ProcessDefinition;
 import com.zorrodev.bpm.contract.model.ProcessInstance;
 import com.zorrodev.bpm.contract.model.ProcessVariable;
@@ -17,6 +19,7 @@ import com.zorrodev.bpm.engine.dto.Activity;
 import com.zorrodev.bpm.contract.dto.Incident;
 import com.zorrodev.bpm.engine.dto.ResolvedAssignment;
 import com.zorrodev.bpm.engine.dto.Token;
+import com.zorrodev.bpm.engine.entity.ActivityStatus;
 import com.zorrodev.bpm.engine.service.ActivityService;
 import com.zorrodev.bpm.engine.service.BpmnService;
 import com.zorrodev.bpm.engine.service.DBService;
@@ -25,7 +28,9 @@ import com.zorrodev.bpm.engine.service.ServiceTaskEnqueueService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
@@ -59,7 +64,34 @@ public class ActivityServiceImpl implements ActivityService {
         execute(processInstanceId, tokenId, bpmn, element);
     }
 
+    /**
+     * Executes one element. An execution error of the element (expression, assignment, missing
+     * model data) becomes an incident on it and stops this token there; the rest of the command
+     * is kept. Database errors and contract errors of the command itself are rethrown.
+     */
     private void execute(UUID processInstanceId, UUID tokenId, BpmnProcessDefinitionModel bpmn, BpmnElementModel element) {
+        try {
+            dispatch(processInstanceId, tokenId, bpmn, element);
+        } catch (DataAccessException | EngineException | ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            // Exception, not RuntimeException: script evaluation rethrows ScriptException via @SneakyThrows
+            raiseIncident(processInstanceId, tokenId, element, e);
+        }
+    }
+
+    private void raiseIncident(UUID processInstanceId, UUID tokenId, BpmnElementModel element, Exception e) {
+        UUID activityId = dbService.findOpenActivity(tokenId, element.getId())
+            .map(Activity::getId)
+            .orElseGet(() -> dbService.createActivity(processInstanceId, tokenId, element));
+        dbService.cancelOpenChildUserTasks(activityId);
+        dbService.setActivityStatus(activityId, ActivityStatus.ERROR);
+        UUID incidentId = dbService.createIncident(activityId, e.getClass().getName() + ": " + e.getMessage());
+
+        log.warn("{}/{}: Incident {} on {}: {}/{}", processInstanceId, tokenId, incidentId, element.getType(), activityId, element.getId(), e);
+    }
+
+    private void dispatch(UUID processInstanceId, UUID tokenId, BpmnProcessDefinitionModel bpmn, BpmnElementModel element) {
         BpmnElementType type = element.getType();
 
         if (type == BpmnElementType.START_EVENT) {
@@ -198,6 +230,7 @@ public class ActivityServiceImpl implements ActivityService {
         UUID tokenId = activity.getToken();
 
         dbService.setVariables(processInstanceId, variables);
+        dbService.resolveOpenIncidents(serviceTaskId);
         dbService.completeActivity(serviceTaskId);
         dbService.completeServiceTask(serviceTaskId);
 
@@ -208,6 +241,20 @@ public class ActivityServiceImpl implements ActivityService {
         BpmnElementModel bpmnElement = bpmn.getElement(activity.getBpmnElementId());
 
         advance(processInstanceId, tokenId, bpmn, bpmnElement);
+    }
+
+    @Override
+    public void failServiceTask(UUID serviceTaskId, String message) {
+        Activity activity = dbService.getActivityForUpdate(serviceTaskId);
+        if (activity.getCompletedAt() != null || activity.getStatus() == ActivityStatus.ERROR) {
+            log.info("{}/{}: Ignoring failure of {} {}/{} in status {}", activity.getProcessInstanceId(), activity.getToken(), activity.getType(), serviceTaskId, activity.getBpmnElementId(), activity.getStatus());
+            return;
+        }
+
+        UUID incidentId = dbService.createIncident(serviceTaskId, message);
+        dbService.setActivityStatus(serviceTaskId, ActivityStatus.ERROR);
+
+        log.warn("{}/{}: Incident {} on {}: {}/{}: {}", activity.getProcessInstanceId(), activity.getToken(), incidentId, activity.getType(), serviceTaskId, activity.getBpmnElementId(), message);
     }
 
     private void enterUserTask(UUID processInstanceId, UUID token, BpmnProcessDefinitionModel bpmn, BpmnElementModel bpmnElement) {
@@ -479,10 +526,30 @@ public class ActivityServiceImpl implements ActivityService {
     }
 
     @Override
-    public void resolveIncident(UUID incidentId) {
+    public void resolveIncident(UUID incidentId, List<ProcessVariable> variables) {
         Incident incident = dbService.getIncident(incidentId);
-        Activity activity = dbService.getActivity(incident.getActivityId());
-        execute(activity.getProcessInstanceId(), activity.getToken(), activity.getBpmnElementId());
+        // The row lock on the failed activity serializes concurrent resolves of the same step.
+        Activity activity = dbService.getActivityForUpdate(incident.getActivityId());
+        if (incident.getCompletedAt() != null || activity.getStatus() != ActivityStatus.ERROR) {
+            throw new IncidentAlreadyResolvedException("Incident " + incidentId + " is already resolved");
+        }
+
+        UUID processInstanceId = activity.getProcessInstanceId();
+        if (variables != null && !variables.isEmpty()) {
+            dbService.setVariables(processInstanceId, variables);
+        }
+        dbService.resolveIncident(incidentId);
+
+        log.info("{}/{}: Resolving incident {} on {}: {}/{}", processInstanceId, activity.getToken(), incidentId, activity.getType(), activity.getId(), activity.getBpmnElementId());
+
+        if (activity.getType() == BpmnElementType.SERVICE_TASK) {
+            dbService.setActivityStatus(activity.getId(), ActivityStatus.CREATED);
+            serviceTaskEnqueueService.enqueueAfterCommit(activity.getId());
+            return;
+        }
+
+        dbService.terminateActivity(activity.getId());
+        execute(processInstanceId, activity.getToken(), activity.getBpmnElementId());
     }
 
     @Override

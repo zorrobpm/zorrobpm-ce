@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_incidents" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="incident-parallel" name="Incident Parallel" isExecutable="true">
+    <bpmn:startEvent id="startEvent">
+      <bpmn:outgoing>flow1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:parallelGateway id="fork">
+      <bpmn:incoming>flow1</bpmn:incoming>
+      <bpmn:outgoing>flowBad</bpmn:outgoing>
+      <bpmn:outgoing>flowGood</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:exclusiveGateway id="badXor" default="flowBadDefault">
+      <bpmn:incoming>flowBad</bpmn:incoming>
+      <bpmn:outgoing>flowBadDefault</bpmn:outgoing>
+      <bpmn:outgoing>flowBadCondition</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="badTask" name="Bad">
+      <bpmn:incoming>flowBadDefault</bpmn:incoming>
+      <bpmn:incoming>flowBadCondition</bpmn:incoming>
+      <bpmn:outgoing>flowBadEnd</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="goodTask" name="Good">
+      <bpmn:incoming>flowGood</bpmn:incoming>
+      <bpmn:outgoing>flowGoodEnd</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="endBad">
+      <bpmn:incoming>flowBadEnd</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="endGood">
+      <bpmn:incoming>flowGoodEnd</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flowBadEnd" sourceRef="badTask" targetRef="endBad" />
+    <bpmn:sequenceFlow id="flowGoodEnd" sourceRef="goodTask" targetRef="endGood" />
+    <bpmn:sequenceFlow id="flow1" sourceRef="startEvent" targetRef="fork" />
+    <bpmn:sequenceFlow id="flowBad" sourceRef="fork" targetRef="badXor" />
+    <bpmn:sequenceFlow id="flowGood" sourceRef="fork" targetRef="goodTask" />
+    <bpmn:sequenceFlow id="flowBadDefault" sourceRef="badXor" targetRef="badTask" />
+    <bpmn:sequenceFlow id="flowBadCondition" sourceRef="badXor" targetRef="badTask">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=missing &gt; &gt; 1</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+  </bpmn:process>
+</bpmn:definitions>

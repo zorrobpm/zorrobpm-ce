@@ -11,7 +11,10 @@ import com.zorrodev.bpm.contract.model.ProcessInstance;
 import com.zorrodev.bpm.contract.model.ProcessVariable;
 import com.zorrodev.bpm.contract.model.ServiceTask;
 import com.zorrodev.bpm.contract.model.UserTask;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.service.annotation.GetExchange;
+
+import java.util.UUID;
 
 public interface QueryContract {
 
@@ -29,5 +32,8 @@ public interface QueryContract {
 
     @GetExchange("/incidents")
     PagedDataDTO<Incident> getProcessInstances(IncidentQuery query);
+
+    @GetExchange("/incidents/{id}")
+    Incident getIncident(@PathVariable UUID id);
 
 }

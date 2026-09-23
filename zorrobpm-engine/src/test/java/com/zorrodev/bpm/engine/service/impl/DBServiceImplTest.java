@@ -9,6 +9,7 @@ import com.zorrodev.bpm.engine.bpmn.model.BpmnElementType;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnFlowModel;
 import com.zorrodev.bpm.engine.dto.Activity;
 import com.zorrodev.bpm.contract.dto.Incident;
+import com.zorrodev.bpm.contract.exception.IncidentNotFoundException;
 import com.zorrodev.bpm.contract.exception.UserTaskAlreadyAssignedException;
 import com.zorrodev.bpm.engine.dto.ResolvedAssignment;
 import com.zorrodev.bpm.engine.dto.Token;
@@ -26,6 +27,7 @@ import com.zorrodev.bpm.engine.bpmn.xml.extension.UserTaskExtensionModel;
 import com.zorrodev.bpm.engine.entity.UserTaskCandidateEntity;
 import com.zorrodev.bpm.engine.entity.UserTaskCandidateType;
 import com.zorrodev.bpm.engine.entity.UserTaskEntity;
+import com.zorrodev.bpm.engine.mapper.IncidentMapper;
 import com.zorrodev.bpm.engine.mapper.ProcessInstanceMapper;
 import com.zorrodev.bpm.engine.repository.ActivityRepository;
 import com.zorrodev.bpm.engine.repository.IncidentRepository;
@@ -36,12 +38,14 @@ import com.zorrodev.bpm.engine.repository.TokenRepository;
 import com.zorrodev.bpm.engine.repository.UserTaskCandidateRepository;
 import com.zorrodev.bpm.engine.repository.UserTaskRepository;
 import com.zorrodev.bpm.engine.repository.VariableRepository;
+import com.zorrodev.bpm.event.UserTaskInstanceCreatedEvent;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.Instant;
 import java.util.Collection;
@@ -72,6 +76,8 @@ class DBServiceImplTest {
     @Mock private TokenRepository tokenRepository;
     @Mock private IncidentRepository incidentRepository;
     @Mock private ProcessInstanceMapper processInstanceMapper;
+    @Mock private IncidentMapper incidentMapper;
+    @Mock private ApplicationEventPublisher publisher;
 
     @InjectMocks
     private DBServiceImpl dbService;
@@ -234,6 +240,52 @@ class DBServiceImplTest {
         assertThat(saved.getAssignee()).isNull();
         assertThat(saved.getFormKey()).isNull();
         verifyNoInteractions(userTaskCandidateRepository);
+    }
+
+    @Test
+    void createUserTask_publishesUserTaskInstanceCreatedEvent() {
+        UUID activityId = UUID.randomUUID();
+        UUID processInstanceId = UUID.randomUUID();
+        UUID processDefinitionId = UUID.randomUUID();
+        Instant createdAt = Instant.now();
+
+        ActivityEntity activity = new ActivityEntity();
+        activity.setId(activityId);
+        activity.setProcessInstanceId(processInstanceId);
+        activity.setBpmnElementId("ut1");
+        activity.setCreatedAt(createdAt);
+
+        ProcessInstanceEntity pi = new ProcessInstanceEntity();
+        pi.setId(processInstanceId);
+        pi.setProcessDefinitionId(processDefinitionId);
+
+        ProcessDefinitionEntity pd = new ProcessDefinitionEntity();
+        pd.setId(processDefinitionId);
+        pd.setKey("order");
+        pd.setVersion(2);
+
+        when(activityRepository.findById(activityId)).thenReturn(Optional.of(activity));
+        when(processInstanceRepository.findById(processInstanceId)).thenReturn(Optional.of(pi));
+        when(processDefinitionRepository.findById(processDefinitionId)).thenReturn(Optional.of(pd));
+
+        BpmnElementModel element = newUserTaskElement("john", "formKey1", null, null);
+        element.setName("Approve order");
+
+        dbService.createUserTask(activityId, element, ResolvedAssignment.EMPTY);
+
+        ArgumentCaptor<UserTaskInstanceCreatedEvent> captor = ArgumentCaptor.forClass(UserTaskInstanceCreatedEvent.class);
+        verify(publisher).publishEvent(captor.capture());
+        UserTaskInstanceCreatedEvent event = captor.getValue();
+        assertThat(event.getId()).isEqualTo(activityId);
+        assertThat(event.getType()).isEqualTo("UserTaskInstanceCreatedEvent");
+        assertThat(event.getBpmnElementId()).isEqualTo("ut1");
+        assertThat(event.getName()).isEqualTo("Approve order");
+        assertThat(event.getFormKey()).isEqualTo("formKey1");
+        assertThat(event.getCreatedAt()).isEqualTo(createdAt);
+        assertThat(event.getProcessInstanceId()).isEqualTo(processInstanceId);
+        assertThat(event.getProcessDefinitionId()).isEqualTo(processDefinitionId);
+        assertThat(event.getProcessDefinitionKey()).isEqualTo("order");
+        assertThat(event.getProcessDefinitionVersion()).isEqualTo(2);
     }
 
     @Test
@@ -717,9 +769,96 @@ class DBServiceImplTest {
     }
 
     @Test
-    void getIncident_returnsNull() {
-        Incident result = dbService.getIncident(UUID.randomUUID());
-        assertThat(result).isNull();
+    void getIncident_mapsEntity() {
+        UUID id = UUID.randomUUID();
+        IncidentEntity entity = new IncidentEntity();
+        entity.setId(id);
+        Incident dto = new Incident();
+        dto.setId(id);
+        when(incidentRepository.findById(id)).thenReturn(Optional.of(entity));
+        when(incidentMapper.toDTO(entity)).thenReturn(dto);
+
+        assertThat(dbService.getIncident(id)).isSameAs(dto);
+    }
+
+    @Test
+    void getIncident_unknownThrowsNotFound() {
+        UUID id = UUID.randomUUID();
+        when(incidentRepository.findById(id)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> dbService.getIncident(id)).isInstanceOf(IncidentNotFoundException.class);
+    }
+
+    @Test
+    void resolveIncident_setsCompletedAt() {
+        UUID id = UUID.randomUUID();
+        IncidentEntity entity = new IncidentEntity();
+        entity.setId(id);
+        when(incidentRepository.findById(id)).thenReturn(Optional.of(entity));
+
+        dbService.resolveIncident(id);
+
+        assertThat(entity.getCompletedAt()).isNotNull();
+        verify(incidentRepository).save(entity);
+    }
+
+    @Test
+    void resolveIncident_unknownThrowsNotFound() {
+        UUID id = UUID.randomUUID();
+        when(incidentRepository.findById(id)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> dbService.resolveIncident(id)).isInstanceOf(IncidentNotFoundException.class);
+    }
+
+    @Test
+    void resolveOpenIncidents_closesEveryOpenIncidentOfActivity() {
+        UUID activityId = UUID.randomUUID();
+        IncidentEntity first = new IncidentEntity();
+        IncidentEntity second = new IncidentEntity();
+        when(incidentRepository.findByActivityIdAndCompletedAtIsNull(activityId)).thenReturn(List.of(first, second));
+
+        dbService.resolveOpenIncidents(activityId);
+
+        assertThat(first.getCompletedAt()).isNotNull();
+        assertThat(second.getCompletedAt()).isNotNull();
+        verify(incidentRepository).saveAll(List.of(first, second));
+    }
+
+    @Test
+    void hasOpenIncident_delegatesToRepository() {
+        UUID activityId = UUID.randomUUID();
+        when(incidentRepository.existsByActivityIdAndCompletedAtIsNull(activityId)).thenReturn(true);
+
+        assertThat(dbService.hasOpenIncident(activityId)).isTrue();
+    }
+
+    @Test
+    void setActivityStatus_updatesStatus() {
+        UUID activityId = UUID.randomUUID();
+        dbService.setActivityStatus(activityId, ActivityStatus.ERROR);
+        verify(activityRepository).setStatus(activityId, ActivityStatus.ERROR);
+    }
+
+    @Test
+    void terminateActivity_setsTerminatedAndCompletedAt() {
+        UUID activityId = UUID.randomUUID();
+        dbService.terminateActivity(activityId);
+        verify(activityRepository).setStatusAndCompletedAt(eq(activityId), eq(ActivityStatus.TERMINATED), any(Instant.class));
+    }
+
+    @Test
+    void findOpenActivity_returnsLatestOpenTopLevelActivity() {
+        UUID token = UUID.randomUUID();
+        ActivityEntity entity = new ActivityEntity();
+        entity.setId(UUID.randomUUID());
+        entity.setToken(token);
+        entity.setBpmnElementId("gw");
+        when(activityRepository.findFirstByTokenAndBpmnElementIdAndParentActivityIdIsNullAndCompletedAtIsNullOrderByCreatedAtDesc(token, "gw"))
+            .thenReturn(Optional.of(entity));
+
+        Optional<Activity> result = dbService.findOpenActivity(token, "gw");
+
+        assertThat(result).map(Activity::getId).contains(entity.getId());
     }
 
     private static ProcessVariable newVar(String name, String value, ProcessVariableType type) {

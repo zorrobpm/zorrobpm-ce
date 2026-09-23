@@ -1,5 +1,6 @@
 package com.zorrodev.bpm.engine.service.impl;
 
+import com.zorrodev.bpm.contract.exception.IncidentNotFoundException;
 import com.zorrodev.bpm.contract.exception.UserTaskAlreadyAssignedException;
 import com.zorrodev.bpm.contract.model.ProcessDefinition;
 import com.zorrodev.bpm.contract.model.ProcessInstance;
@@ -25,6 +26,7 @@ import com.zorrodev.bpm.engine.entity.TokenEntity;
 import com.zorrodev.bpm.engine.entity.UserTaskCandidateEntity;
 import com.zorrodev.bpm.engine.entity.UserTaskCandidateType;
 import com.zorrodev.bpm.engine.entity.UserTaskEntity;
+import com.zorrodev.bpm.engine.mapper.IncidentMapper;
 import com.zorrodev.bpm.engine.mapper.ProcessInstanceMapper;
 import com.zorrodev.bpm.engine.repository.ActivityRepository;
 import com.zorrodev.bpm.engine.repository.IncidentRepository;
@@ -36,8 +38,10 @@ import com.zorrodev.bpm.engine.repository.UserTaskCandidateRepository;
 import com.zorrodev.bpm.engine.repository.UserTaskRepository;
 import com.zorrodev.bpm.engine.repository.VariableRepository;
 import com.zorrodev.bpm.engine.service.DBService;
+import com.zorrodev.bpm.event.UserTaskInstanceCreatedEvent;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.NonNull;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -61,6 +65,8 @@ public class DBServiceImpl implements DBService {
     private final TokenRepository tokenRepository;
     private final IncidentRepository incidentRepository;
     private final ProcessInstanceMapper processInstanceMapper;
+    private final IncidentMapper incidentMapper;
+    private final ApplicationEventPublisher publisher;
 
     @Override
     public UUID createProcessInstance(UUID parentActivityId, UUID processDefinitionId, List<ProcessVariable> variables) {
@@ -204,6 +210,25 @@ public class DBServiceImpl implements DBService {
         if (!candidates.isEmpty()) {
             userTaskCandidateRepository.saveAll(candidates);
         }
+
+        publishUserTaskInstanceCreatedEvent(entity, element);
+    }
+
+    private void publishUserTaskInstanceCreatedEvent(UserTaskEntity entity, BpmnElementModel element) {
+        UserTaskInstanceCreatedEvent event = new UserTaskInstanceCreatedEvent();
+        event.setId(entity.getId());
+        event.setType("UserTaskInstanceCreatedEvent");
+        event.setBpmnElementId(entity.getBpmnElementId());
+        event.setName(Optional.ofNullable(element).map(BpmnElementModel::getName).orElse(null));
+        event.setFormKey(entity.getFormKey());
+        event.setCreatedAt(entity.getCreatedAt());
+        event.setProcessInstanceId(entity.getProcessInstanceId());
+        event.setProcessDefinitionId(entity.getProcessDefinitionId());
+        processDefinitionRepository.findById(entity.getProcessDefinitionId()).ifPresent(pd -> {
+            event.setProcessDefinitionKey(pd.getKey());
+            event.setProcessDefinitionVersion(pd.getVersion());
+        });
+        publisher.publishEvent(event);
     }
 
     private static UserTaskCandidateEntity newCandidate(UUID taskId, UserTaskCandidateType type, String value) {
@@ -381,7 +406,46 @@ public class DBServiceImpl implements DBService {
 
     @Override
     public Incident getIncident(UUID incidentId) {
-        return null;
+        return incidentRepository.findById(incidentId)
+            .map(incidentMapper::toDTO)
+            .orElseThrow(() -> new IncidentNotFoundException("Incident " + incidentId + " not found"));
+    }
+
+    @Override
+    public void resolveIncident(UUID incidentId) {
+        IncidentEntity entity = incidentRepository.findById(incidentId)
+            .orElseThrow(() -> new IncidentNotFoundException("Incident " + incidentId + " not found"));
+        entity.setCompletedAt(Instant.now());
+        incidentRepository.save(entity);
+    }
+
+    @Override
+    public void resolveOpenIncidents(UUID activityId) {
+        Instant now = Instant.now();
+        List<IncidentEntity> incidents = incidentRepository.findByActivityIdAndCompletedAtIsNull(activityId);
+        incidents.forEach(incident -> incident.setCompletedAt(now));
+        incidentRepository.saveAll(incidents);
+    }
+
+    @Override
+    public boolean hasOpenIncident(UUID activityId) {
+        return incidentRepository.existsByActivityIdAndCompletedAtIsNull(activityId);
+    }
+
+    @Override
+    public void setActivityStatus(UUID activityId, ActivityStatus status) {
+        activityRepository.setStatus(activityId, status);
+    }
+
+    @Override
+    public void terminateActivity(UUID activityId) {
+        activityRepository.setStatusAndCompletedAt(activityId, ActivityStatus.TERMINATED, Instant.now());
+    }
+
+    @Override
+    public Optional<Activity> findOpenActivity(UUID tokenId, String bpmnElementId) {
+        return activityRepository.findFirstByTokenAndBpmnElementIdAndParentActivityIdIsNullAndCompletedAtIsNullOrderByCreatedAtDesc(tokenId, bpmnElementId)
+            .map(this::getActivity);
     }
 
     private Activity getActivity(ActivityEntity activityEntity) {

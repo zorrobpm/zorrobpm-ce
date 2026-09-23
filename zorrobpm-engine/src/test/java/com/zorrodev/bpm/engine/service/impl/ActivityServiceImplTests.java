@@ -1,6 +1,10 @@
 package com.zorrodev.bpm.engine.service.impl;
 
+import com.zorrodev.bpm.contract.dto.Incident;
+import com.zorrodev.bpm.contract.exception.IncidentAlreadyResolvedException;
+import com.zorrodev.bpm.contract.exception.IncidentNotFoundException;
 import com.zorrodev.bpm.contract.model.ProcessDefinition;
+import com.zorrodev.bpm.contract.model.ProcessVariable;
 import com.zorrodev.bpm.contract.model.ProcessInstance;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnElementModel;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnElementType;
@@ -8,6 +12,7 @@ import com.zorrodev.bpm.engine.bpmn.model.BpmnFlowModel;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnProcessDefinitionModel;
 import com.zorrodev.bpm.engine.dto.Activity;
 import com.zorrodev.bpm.engine.dto.Token;
+import com.zorrodev.bpm.engine.entity.ActivityStatus;
 import com.zorrodev.bpm.engine.service.BpmnParseService;
 import com.zorrodev.bpm.engine.service.BpmnService;
 import com.zorrodev.bpm.engine.service.DBService;
@@ -19,19 +24,24 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.annotation.Rollback;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -412,5 +422,226 @@ public class ActivityServiceImplTests {
         List<BpmnElementType> elementTypes = elementCaptor.getAllValues().stream().map(BpmnElementModel::getType).toList();
 
         assertThat(elementTypes).contains(BpmnElementType.START_EVENT, BpmnElementType.END_EVENT, BpmnElementType.CALL_ACTIVITY);
+    }
+
+    @Test
+    public void failServiceTask_createsIncidentAndMarksActivityError() {
+        UUID serviceTaskId = UUID.randomUUID();
+        when(dbService.getActivityForUpdate(serviceTaskId)).thenReturn(serviceTaskActivity(serviceTaskId, ActivityStatus.CREATED, null));
+        when(dbService.createIncident(serviceTaskId, "boom")).thenReturn(UUID.randomUUID());
+
+        activityService.failServiceTask(serviceTaskId, "boom");
+
+        verify(dbService).createIncident(serviceTaskId, "boom");
+        verify(dbService).setActivityStatus(serviceTaskId, ActivityStatus.ERROR);
+        verify(dbService, never()).completeServiceTask(any());
+        verify(dbService, never()).completeActivity(any());
+    }
+
+    @Test
+    public void failServiceTask_ignoresRepeatedFailure() {
+        UUID serviceTaskId = UUID.randomUUID();
+        when(dbService.getActivityForUpdate(serviceTaskId)).thenReturn(serviceTaskActivity(serviceTaskId, ActivityStatus.ERROR, null));
+
+        activityService.failServiceTask(serviceTaskId, "boom");
+
+        verify(dbService, never()).createIncident(any(), any());
+        verify(dbService, never()).setActivityStatus(any(), any());
+    }
+
+    @Test
+    public void failServiceTask_ignoresCompletedServiceTask() {
+        UUID serviceTaskId = UUID.randomUUID();
+        when(dbService.getActivityForUpdate(serviceTaskId)).thenReturn(serviceTaskActivity(serviceTaskId, ActivityStatus.COMPLETED, Instant.now()));
+
+        activityService.failServiceTask(serviceTaskId, "boom");
+
+        verify(dbService, never()).createIncident(any(), any());
+        verify(dbService, never()).setActivityStatus(any(), any());
+    }
+
+    private static Activity serviceTaskActivity(UUID id, ActivityStatus status, Instant completedAt) {
+        Activity activity = new Activity();
+        activity.setId(id);
+        activity.setProcessInstanceId(UUID.randomUUID());
+        activity.setToken(UUID.randomUUID());
+        activity.setBpmnElementId("serviceTask1");
+        activity.setType(BpmnElementType.SERVICE_TASK);
+        activity.setStatus(status);
+        activity.setCompletedAt(completedAt);
+        return activity;
+    }
+
+    @Test
+    public void executionErrorInGatewayConditionBecomesIncidentOnGateway() throws IOException {
+        BpmnProcessDefinitionModel bpmn = bpmnParseService.parse(Files.readString(Path.of("src/test/files/process4.bpmn")));
+
+        UUID processDefinitionId = UUID.randomUUID();
+        UUID processInstanceId = UUID.randomUUID();
+        UUID token = UUID.randomUUID();
+        UUID gatewayActivityId = UUID.randomUUID();
+        UUID incidentId = UUID.randomUUID();
+
+        ProcessInstance pi = new ProcessInstance();
+        pi.setId(processInstanceId);
+        pi.setProcessDefinitionId(processDefinitionId);
+
+        Activity gatewayActivity = new Activity();
+        gatewayActivity.setId(gatewayActivityId);
+
+        when(bpmnService.getProcessDefinitionModelById(processDefinitionId)).thenReturn(bpmn);
+        when(dbService.getProcessInstance(processInstanceId)).thenReturn(pi);
+        when(dbService.createActivity(processInstanceId, token, bpmn.getElement("startEvent"))).thenReturn(UUID.randomUUID());
+        when(dbService.createActivity(processInstanceId, token, bpmn.getFlow("flow1"))).thenReturn(UUID.randomUUID());
+        when(dbService.createActivity(processInstanceId, token, bpmn.getElement("xor1"))).thenReturn(gatewayActivityId);
+        when(scriptService.evaluateScript(eq("a > 5"), any())).thenThrow(new IllegalStateException("a is undefined"));
+        when(dbService.findOpenActivity(token, "xor1")).thenReturn(Optional.of(gatewayActivity));
+        when(dbService.createIncident(eq(gatewayActivityId), any())).thenReturn(incidentId);
+
+        activityService.execute(processInstanceId, token, "startEvent");
+
+        verify(dbService).cancelOpenChildUserTasks(gatewayActivityId);
+        verify(dbService).setActivityStatus(gatewayActivityId, ActivityStatus.ERROR);
+        verify(dbService).createIncident(gatewayActivityId, "java.lang.IllegalStateException: a is undefined");
+        verify(dbService, never()).createActivity(processInstanceId, token, bpmn.getElement("userTask1"));
+        verify(dbService, never()).createActivity(processInstanceId, token, bpmn.getElement("userTask2"));
+    }
+
+    @Test
+    public void databaseErrorIsNotTurnedIntoIncident() throws IOException {
+        BpmnProcessDefinitionModel bpmn = bpmnParseService.parse(Files.readString(Path.of("src/test/files/process4.bpmn")));
+
+        UUID processDefinitionId = UUID.randomUUID();
+        UUID processInstanceId = UUID.randomUUID();
+        UUID token = UUID.randomUUID();
+
+        ProcessInstance pi = new ProcessInstance();
+        pi.setId(processInstanceId);
+        pi.setProcessDefinitionId(processDefinitionId);
+
+        when(bpmnService.getProcessDefinitionModelById(processDefinitionId)).thenReturn(bpmn);
+        when(dbService.getProcessInstance(processInstanceId)).thenReturn(pi);
+        when(dbService.createActivity(processInstanceId, token, bpmn.getElement("startEvent")))
+            .thenThrow(new DataIntegrityViolationException("fk"));
+
+        assertThatThrownBy(() -> activityService.execute(processInstanceId, token, "startEvent"))
+            .isInstanceOf(DataIntegrityViolationException.class);
+        verify(dbService, never()).createIncident(any(), any());
+    }
+
+    @Test
+    public void resolveIncident_serviceTaskIsRequeued() {
+        UUID serviceTaskId = UUID.randomUUID();
+        UUID incidentId = UUID.randomUUID();
+        Activity activity = serviceTaskActivity(serviceTaskId, ActivityStatus.ERROR, null);
+        List<ProcessVariable> variables = List.of(new ProcessVariable());
+        when(dbService.getIncident(incidentId)).thenReturn(incident(incidentId, serviceTaskId, null));
+        when(dbService.getActivityForUpdate(serviceTaskId)).thenReturn(activity);
+
+        activityService.resolveIncident(incidentId, variables);
+
+        verify(dbService).setVariables(activity.getProcessInstanceId(), variables);
+        verify(dbService).resolveIncident(incidentId);
+        verify(dbService).setActivityStatus(serviceTaskId, ActivityStatus.CREATED);
+        verify(serviceTaskEnqueueService).enqueueAfterCommit(serviceTaskId);
+        verify(dbService, never()).terminateActivity(any());
+    }
+
+    @Test
+    public void resolveIncident_engineErrorTerminatesActivityAndReexecutesElement() throws IOException {
+        BpmnProcessDefinitionModel bpmn = bpmnParseService.parse(Files.readString(Path.of("src/test/files/process4.bpmn")));
+        UUID processDefinitionId = UUID.randomUUID();
+        UUID processInstanceId = UUID.randomUUID();
+        UUID token = UUID.randomUUID();
+        UUID failedActivityId = UUID.randomUUID();
+        UUID incidentId = UUID.randomUUID();
+
+        ProcessInstance pi = new ProcessInstance();
+        pi.setId(processInstanceId);
+        pi.setProcessDefinitionId(processDefinitionId);
+
+        Activity failed = new Activity();
+        failed.setId(failedActivityId);
+        failed.setProcessInstanceId(processInstanceId);
+        failed.setToken(token);
+        failed.setBpmnElementId("userTask1");
+        failed.setType(BpmnElementType.USER_TASK);
+        failed.setStatus(ActivityStatus.ERROR);
+
+        UUID newActivityId = UUID.randomUUID();
+        when(dbService.getIncident(incidentId)).thenReturn(incident(incidentId, failedActivityId, null));
+        when(dbService.getActivityForUpdate(failedActivityId)).thenReturn(failed);
+        when(dbService.getProcessInstance(processInstanceId)).thenReturn(pi);
+        when(bpmnService.getProcessDefinitionModelById(processDefinitionId)).thenReturn(bpmn);
+        when(dbService.createActivity(processInstanceId, token, bpmn.getElement("userTask1"))).thenReturn(newActivityId);
+
+        activityService.resolveIncident(incidentId, null);
+
+        verify(dbService, never()).setVariables(any(), any());
+        verify(dbService).resolveIncident(incidentId);
+        verify(dbService).terminateActivity(failedActivityId);
+        verify(dbService).createUserTask(eq(newActivityId), eq(bpmn.getElement("userTask1")), any());
+        verify(serviceTaskEnqueueService, never()).enqueueAfterCommit(any());
+    }
+
+    @Test
+    public void resolveIncident_closedIncidentIsConflict() {
+        UUID serviceTaskId = UUID.randomUUID();
+        UUID incidentId = UUID.randomUUID();
+        when(dbService.getIncident(incidentId)).thenReturn(incident(incidentId, serviceTaskId, Instant.now()));
+        when(dbService.getActivityForUpdate(serviceTaskId)).thenReturn(serviceTaskActivity(serviceTaskId, ActivityStatus.CREATED, null));
+
+        assertThatThrownBy(() -> activityService.resolveIncident(incidentId, List.of()))
+            .isInstanceOf(IncidentAlreadyResolvedException.class);
+        verify(dbService, never()).resolveIncident(any());
+        verify(serviceTaskEnqueueService, never()).enqueueAfterCommit(any());
+    }
+
+    @Test
+    public void resolveIncident_unknownIncidentIsNotFound() {
+        UUID incidentId = UUID.randomUUID();
+        when(dbService.getIncident(incidentId)).thenThrow(new IncidentNotFoundException("missing"));
+
+        assertThatThrownBy(() -> activityService.resolveIncident(incidentId, List.of()))
+            .isInstanceOf(IncidentNotFoundException.class);
+        verify(dbService, never()).resolveIncident(any());
+    }
+
+    private static Incident incident(UUID id, UUID activityId, Instant completedAt) {
+        Incident incident = new Incident();
+        incident.setId(id);
+        incident.setActivityId(activityId);
+        incident.setMessage("boom");
+        incident.setCreatedAt(Instant.now());
+        incident.setCompletedAt(completedAt);
+        return incident;
+    }
+
+    @Test
+    public void completeServiceTask_closesOpenIncidentAndAdvances() throws IOException {
+        BpmnProcessDefinitionModel bpmn = bpmnParseService.parse(Files.readString(Path.of("src/test/files/process2.bpmn")));
+        UUID processDefinitionId = UUID.randomUUID();
+        UUID serviceTaskId = UUID.randomUUID();
+        Activity activity = serviceTaskActivity(serviceTaskId, ActivityStatus.ERROR, null);
+        activity.setBpmnElementId("serviceTask");
+        UUID processInstanceId = activity.getProcessInstanceId();
+        UUID token = activity.getToken();
+
+        ProcessInstance pi = new ProcessInstance();
+        pi.setId(processInstanceId);
+        pi.setProcessDefinitionId(processDefinitionId);
+
+        when(dbService.getActivity(serviceTaskId)).thenReturn(activity);
+        when(dbService.getProcessInstance(processInstanceId)).thenReturn(pi);
+        when(bpmnService.getProcessDefinitionModelById(processDefinitionId)).thenReturn(bpmn);
+        when(dbService.createActivity(processInstanceId, token, bpmn.getFlow("flow2"))).thenReturn(UUID.randomUUID());
+        when(dbService.createActivity(processInstanceId, token, bpmn.getElement("endEvent"))).thenReturn(UUID.randomUUID());
+
+        activityService.completeServiceTask(serviceTaskId, List.of());
+
+        verify(dbService).resolveOpenIncidents(serviceTaskId);
+        verify(dbService).completeActivity(serviceTaskId);
+        verify(dbService).completeServiceTask(serviceTaskId);
+        verify(dbService).completeProcessInstance(processInstanceId);
     }
 }

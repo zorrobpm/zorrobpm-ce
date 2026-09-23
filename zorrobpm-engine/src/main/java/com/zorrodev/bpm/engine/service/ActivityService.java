@@ -11,9 +11,11 @@ public interface ActivityService {
 
     void completeServiceTask(UUID activityId, List<ProcessVariable> variables);
 
+    void failServiceTask(UUID serviceTaskId, String message);
+
     void completeUserTask(UUID activityId, List<ProcessVariable> variables);
 
-    void resolveIncident(UUID incidentId);
+    void resolveIncident(UUID incidentId, List<ProcessVariable> variables);
 
     UUID startProcessInstance(UUID parentProcessInstanceId, UUID processDefinitionId, List<ProcessVariable> variables);
 }

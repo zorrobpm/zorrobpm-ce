@@ -16,7 +16,10 @@ import com.zorrodev.bpm.engine.service.QueryService;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.UUID;
 
 @RestController
 @RequiredArgsConstructor
@@ -42,5 +45,9 @@ public class QueryResource implements QueryContract {
 
     public PagedDataDTO<Incident> getProcessInstances(@ParameterObject IncidentQuery query) {
         return queryService.findIncidents(query);
+    }
+
+    public Incident getIncident(@PathVariable UUID id) {
+        return queryService.getIncident(id);
     }
 }
