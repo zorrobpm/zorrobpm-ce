@@ -11,6 +11,7 @@ COPY zorrobpm-job-handler-spring-boot-starter/pom.xml zorrobpm-job-handler-sprin
 COPY zorrobpm-test/pom.xml zorrobpm-test/
 COPY zorrobpm-exchange/pom.xml zorrobpm-exchange/
 COPY zorrobpm-rabbitmq/pom.xml zorrobpm-rabbitmq/
+COPY zorrobpm-grpc/pom.xml zorrobpm-grpc/
 COPY zorrobpm-ce/pom.xml zorrobpm-ce/
 
 RUN mvn -B -ntp -pl zorrobpm-ce -am dependency:go-offline -DskipTests || true
@@ -24,6 +25,7 @@ COPY zorrobpm-job-handler-spring-boot-starter/src zorrobpm-job-handler-spring-bo
 COPY zorrobpm-test/src zorrobpm-test/src
 COPY zorrobpm-exchange/src zorrobpm-exchange/src
 COPY zorrobpm-rabbitmq/src zorrobpm-rabbitmq/src
+COPY zorrobpm-grpc/src zorrobpm-grpc/src
 COPY zorrobpm-ce/src zorrobpm-ce/src
 
 RUN mvn -B -ntp -pl zorrobpm-ce -am package -DskipTests

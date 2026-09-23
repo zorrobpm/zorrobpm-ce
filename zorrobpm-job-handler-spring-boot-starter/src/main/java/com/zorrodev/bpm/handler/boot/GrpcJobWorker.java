@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -65,6 +66,7 @@ public class GrpcJobWorker implements SmartLifecycle {
 
     private volatile boolean running;
     private volatile ClientCallStreamObserver<SubscribeJobsRequest> call;
+    private final CountDownLatch stopped = new CountDownLatch(1);
 
     public GrpcJobWorker(ManagedChannel channel, List<JobHandler> handlers, GrpcHandlerProperties properties, String worker) {
         this.channel = channel;
@@ -98,11 +100,28 @@ public class GrpcJobWorker implements SmartLifecycle {
     @Override
     public void start() {
         running = true;
+        keepAlive();
         if (handlers.isEmpty()) {
             log.info("No job handlers, not subscribing to the engine");
             return;
         }
         subscribe();
+    }
+
+    /**
+     * The threads of gRPC and of this worker are daemon threads: without a web server nothing else
+     * would keep the JVM of a worker application alive (the listener containers do it on RabbitMQ).
+     */
+    private void keepAlive() {
+        Thread thread = new Thread(() -> {
+            try {
+                stopped.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }, "zorrobpm-job-worker-keep-alive");
+        thread.setDaemon(false);
+        thread.start();
     }
 
     private void subscribe() {
@@ -288,6 +307,7 @@ public class GrpcJobWorker implements SmartLifecycle {
             pool.shutdownNow();
         }
         channel.shutdown();
+        stopped.countDown();
     }
 
     @Override

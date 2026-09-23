@@ -194,6 +194,23 @@ class GrpcJobWorkerTest {
         assertThat(engine.subscriptions.peek().getLockTimeout().getSeconds()).isEqualTo(90);
     }
 
+    @Test
+    void workerKeepsTheJvmAliveUntilStopped() throws Exception {
+        start(handler(model -> List.of()), properties());
+
+        assertThat(keepAliveThreads()).singleElement().satisfies(t -> assertThat(t.isDaemon()).isFalse());
+
+        worker.stop();
+        worker = null;
+        await(() -> keepAliveThreads().isEmpty());
+    }
+
+    private static List<Thread> keepAliveThreads() {
+        return Thread.getAllStackTraces().keySet().stream()
+            .filter(t -> t.getName().equals("zorrobpm-job-worker-keep-alive") && t.isAlive())
+            .toList();
+    }
+
     // ---------------------------------------------------------------- auto-configuration
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
