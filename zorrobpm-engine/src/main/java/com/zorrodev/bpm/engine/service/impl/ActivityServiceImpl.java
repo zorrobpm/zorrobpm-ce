@@ -49,6 +49,7 @@ import tools.jackson.databind.ObjectMapper;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -336,7 +337,8 @@ public class ActivityServiceImpl implements ActivityService {
         int available = override.retries() != null ? Math.max(0, override.retries()) : state.retries();
         if (available > 0) {
             Duration timeout = override.retryTimeout() != null ? override.retryTimeout() : serviceTaskExtension(activity).getRetryTimeout();
-            Instant dueAt = clock.instant().plus(timeout);
+            // Microseconds: what the database keeps, so the response matches later reads.
+            Instant dueAt = clock.instant().plus(timeout).truncatedTo(ChronoUnit.MICROS);
             dbService.scheduleServiceTaskRetry(serviceTaskId, available - 1, error, dueAt);
             log.warn("{}/{}: Retry of {} {}/{} at {}, {} left after it: {} ({})", activity.getProcessInstanceId(), activity.getToken(), activity.getType(), serviceTaskId, activity.getBpmnElementId(), dueAt, available - 1, error.getMessage(), error.getErrorCode());
             return new FailureOutcome(null, available - 1, dueAt);
