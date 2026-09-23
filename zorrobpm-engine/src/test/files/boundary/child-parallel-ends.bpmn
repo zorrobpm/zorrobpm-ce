@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_child_parallel_ends" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="completion-child-parallel-ends" name="Child with parallel branches" isExecutable="true">
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>toFork</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:parallelGateway id="fork">
+      <bpmn:incoming>toFork</bpmn:incoming>
+      <bpmn:outgoing>toA</bpmn:outgoing>
+      <bpmn:outgoing>toB</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="taskA" name="A">
+      <bpmn:incoming>toA</bpmn:incoming>
+      <bpmn:outgoing>toEndA</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="taskB" name="B">
+      <bpmn:incoming>toB</bpmn:incoming>
+      <bpmn:outgoing>toEndB</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="endA">
+      <bpmn:incoming>toEndA</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="endB">
+      <bpmn:incoming>toEndB</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="toFork" sourceRef="start" targetRef="fork" />
+    <bpmn:sequenceFlow id="toA" sourceRef="fork" targetRef="taskA" />
+    <bpmn:sequenceFlow id="toB" sourceRef="fork" targetRef="taskB" />
+    <bpmn:sequenceFlow id="toEndA" sourceRef="taskA" targetRef="endA" />
+    <bpmn:sequenceFlow id="toEndB" sourceRef="taskB" targetRef="endB" />
+  </bpmn:process>
+</bpmn:definitions>

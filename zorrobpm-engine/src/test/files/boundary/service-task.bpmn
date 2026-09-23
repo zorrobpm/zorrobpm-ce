@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_boundary_service_task" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="boundary-service-task" name="Deadline on a service task" isExecutable="true">
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>toCharge</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="charge" name="Charge">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="charge" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>toCharge</bpmn:incoming>
+      <bpmn:outgoing>toDone</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="done">
+      <bpmn:incoming>toDone</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:boundaryEvent id="deadline" name="Deadline" attachedToRef="charge">
+      <bpmn:outgoing>toTimedOut</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">=duration(sla)</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:endEvent id="timedOut">
+      <bpmn:incoming>toTimedOut</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="toCharge" sourceRef="start" targetRef="charge" />
+    <bpmn:sequenceFlow id="toDone" sourceRef="charge" targetRef="done" />
+    <bpmn:sequenceFlow id="toTimedOut" sourceRef="deadline" targetRef="timedOut" />
+  </bpmn:process>
+</bpmn:definitions>

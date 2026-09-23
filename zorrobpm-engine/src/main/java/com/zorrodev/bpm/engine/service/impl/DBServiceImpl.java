@@ -55,6 +55,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -476,7 +477,18 @@ public class DBServiceImpl implements DBService {
 
     @Override
     public ProcessInstance getProcessInstanceForUpdate(UUID processInstanceId) {
-        return processInstanceMapper.toDTO(processInstanceRepository.findByIdForUpdate(processInstanceId).orElseThrow());
+        ProcessInstance instance = processInstanceMapper.toDTO(processInstanceRepository.findByIdForUpdate(processInstanceId).orElseThrow());
+        instance.setCompletedAt(processInstanceRepository.findCompletedAt(processInstanceId).stream().findFirst().orElse(null));
+        return instance;
+    }
+
+    @Override
+    public Optional<UUID> findParentActivityId(UUID activityId) {
+        List<UUID> parent = activityRepository.findParentActivityId(activityId);
+        if (parent.isEmpty()) {
+            throw new NoSuchElementException("Activity " + activityId + " not found");
+        }
+        return Optional.ofNullable(parent.get(0));
     }
 
     @Override

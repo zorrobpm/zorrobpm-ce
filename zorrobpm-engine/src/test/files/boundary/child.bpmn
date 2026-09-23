@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_boundary_child" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="boundary-child" name="Child with a user task" isExecutable="true">
+    <bpmn:startEvent id="childStart">
+      <bpmn:outgoing>toChildTask</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="childTask" name="Child task">
+      <bpmn:incoming>toChildTask</bpmn:incoming>
+      <bpmn:outgoing>toChildEnd</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="childEnd">
+      <bpmn:incoming>toChildEnd</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="toChildTask" sourceRef="childStart" targetRef="childTask" />
+    <bpmn:sequenceFlow id="toChildEnd" sourceRef="childTask" targetRef="childEnd" />
+  </bpmn:process>
+</bpmn:definitions>

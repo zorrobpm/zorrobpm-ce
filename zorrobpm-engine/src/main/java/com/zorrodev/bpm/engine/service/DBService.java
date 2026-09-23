@@ -99,7 +99,18 @@ public interface DBService {
 
     long countOpenActivities(UUID processInstanceId);
 
+    /**
+     * Locks the instance row; {@code completedAt} is read from the database, not from the
+     * persistence context.
+     */
     ProcessInstance getProcessInstanceForUpdate(UUID processInstanceId);
+
+    /**
+     * The parent (multi-instance scope) of an activity, without loading the activity itself.
+     *
+     * @throws java.util.NoSuchElementException when the activity does not exist
+     */
+    Optional<UUID> findParentActivityId(UUID activityId);
 
     Optional<ProcessInstance> findChildProcessInstance(UUID parentActivityId);
 

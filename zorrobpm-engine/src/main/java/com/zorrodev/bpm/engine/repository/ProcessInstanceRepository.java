@@ -49,6 +49,13 @@ public interface ProcessInstanceRepository extends JpaRepository<ProcessInstance
 
     Optional<ProcessInstanceEntity> findFirstByParentActivityId(UUID parentActivityId);
 
+    /**
+     * Read as a scalar: the instance entity may sit in the persistence context with a completion
+     * made by a concurrent transaction that is not visible on it.
+     */
+    @Query("SELECT pi.completedAt FROM ProcessInstanceEntity pi WHERE pi.id = :id AND pi.completedAt IS NOT NULL")
+    List<Instant> findCompletedAt(UUID id);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE ProcessInstanceEntity pi SET pi.completedAt = :completedAt WHERE pi.id = :id")
     void setCompletedAt(UUID id, Instant completedAt);

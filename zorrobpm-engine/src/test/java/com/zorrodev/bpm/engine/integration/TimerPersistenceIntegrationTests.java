@@ -15,6 +15,7 @@ import com.zorrodev.bpm.engine.repository.ProcessInstanceRepository;
 import com.zorrodev.bpm.engine.repository.TimerRepository;
 import com.zorrodev.bpm.engine.service.DBService;
 import com.zorrodev.bpm.engine.service.ProcessDefinitionService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -64,6 +65,17 @@ public class TimerPersistenceIntegrationTests {
 
     @Autowired
     private ProcessDefinitionService processDefinitionService;
+
+    @AfterEach
+    void cancelLeftoverTimers() {
+        // These timers belong to hosts without a real model; the poller of another test must not pick them.
+        run(() -> timerRepository.findAll().stream()
+            .filter(t -> t.getStatus() == TimerStatus.SCHEDULED)
+            .forEach(t -> {
+                t.setStatus(TimerStatus.CANCELED);
+                timerRepository.save(t);
+            }));
+    }
 
     @Test
     void findsDueScheduledTimersInDueOrder() {

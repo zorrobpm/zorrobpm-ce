@@ -42,6 +42,13 @@ public interface ActivityRepository extends JpaRepository<ActivityEntity, UUID> 
     @Query("SELECT e FROM ActivityEntity e WHERE e.id = :id")
     Optional<ActivityEntity> findByIdForUpdateSkipLocked(UUID id);
 
+    /**
+     * The parent of an activity, read as a scalar so that the activity is not loaded into the
+     * persistence context before it is locked.
+     */
+    @Query("SELECT e.parentActivityId FROM ActivityEntity e WHERE e.id = :id")
+    List<UUID> findParentActivityId(UUID id);
+
     long countByProcessInstanceIdAndCompletedAtIsNull(UUID processInstanceId);
 
     List<ActivityEntity> findByProcessInstanceIdAndCompletedAtIsNull(UUID processInstanceId);
