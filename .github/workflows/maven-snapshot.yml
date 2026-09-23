@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - 'zorrobpm-50-*' # TEMPORARY: verification of ZORROBPM-50, remove before merge
   workflow_dispatch:
 
 # One publication per branch at a time; a newer push waits and supersedes queued ones.
