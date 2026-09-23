@@ -42,6 +42,10 @@ public interface ServiceTaskRepository extends JpaRepository<ServiceTaskEntity, 
     @Query("UPDATE ServiceTaskEntity e SET e.completedAt = :completedAt WHERE e.id = :id")
     void setCompletedAt(UUID id, Instant completedAt);
 
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("UPDATE ServiceTaskEntity e SET e.canceledAt = :canceledAt, e.completedAt = :canceledAt WHERE e.id = :id")
+    void setCanceledAt(UUID id, Instant canceledAt);
+
     @Query("SELECT e.bpmnElementId AS bpmnElementId, COUNT(e.id) AS count FROM ServiceTaskEntity e WHERE e.processInstanceId = :processInstanceId GROUP BY e.bpmnElementId")
     List<BpmnElementStatistics> findStatsByProcessInstanceId(UUID processInstanceId);
 

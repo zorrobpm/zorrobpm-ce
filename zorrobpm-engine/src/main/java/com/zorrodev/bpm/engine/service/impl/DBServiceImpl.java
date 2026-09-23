@@ -14,6 +14,8 @@ import com.zorrodev.bpm.engine.bpmn.xml.extension.UserTaskExtensionModel;
 import com.zorrodev.bpm.engine.dto.Activity;
 import com.zorrodev.bpm.contract.dto.Incident;
 import com.zorrodev.bpm.engine.dto.ResolvedAssignment;
+import com.zorrodev.bpm.engine.dto.Timer;
+import com.zorrodev.bpm.engine.dto.TimerSchedule;
 import com.zorrodev.bpm.engine.dto.Token;
 import com.zorrodev.bpm.engine.entity.ActivityEntity;
 import com.zorrodev.bpm.engine.entity.ActivityStatus;
@@ -22,6 +24,8 @@ import com.zorrodev.bpm.engine.entity.ProcessDefinitionEntity;
 import com.zorrodev.bpm.engine.entity.ProcessInstanceEntity;
 import com.zorrodev.bpm.engine.entity.ProcessVariableEntity;
 import com.zorrodev.bpm.engine.entity.ServiceTaskEntity;
+import com.zorrodev.bpm.engine.entity.TimerEntity;
+import com.zorrodev.bpm.engine.entity.TimerStatus;
 import com.zorrodev.bpm.engine.entity.TokenEntity;
 import com.zorrodev.bpm.engine.entity.UserTaskCandidateEntity;
 import com.zorrodev.bpm.engine.entity.UserTaskCandidateType;
@@ -33,6 +37,7 @@ import com.zorrodev.bpm.engine.repository.IncidentRepository;
 import com.zorrodev.bpm.engine.repository.ProcessDefinitionRepository;
 import com.zorrodev.bpm.engine.repository.ProcessInstanceRepository;
 import com.zorrodev.bpm.engine.repository.ServiceTaskRepository;
+import com.zorrodev.bpm.engine.repository.TimerRepository;
 import com.zorrodev.bpm.engine.repository.TokenRepository;
 import com.zorrodev.bpm.engine.repository.UserTaskCandidateRepository;
 import com.zorrodev.bpm.engine.repository.UserTaskRepository;
@@ -42,8 +47,10 @@ import com.zorrodev.bpm.event.UserTaskInstanceCreatedEvent;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.NonNull;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedList;
@@ -64,9 +71,11 @@ public class DBServiceImpl implements DBService {
     private final VariableRepository variableRepository;
     private final TokenRepository tokenRepository;
     private final IncidentRepository incidentRepository;
+    private final TimerRepository timerRepository;
     private final ProcessInstanceMapper processInstanceMapper;
     private final IncidentMapper incidentMapper;
     private final ApplicationEventPublisher publisher;
+    private final Clock clock;
 
     @Override
     public UUID createProcessInstance(UUID parentActivityId, UUID processDefinitionId, List<ProcessVariable> variables) {
@@ -446,6 +455,112 @@ public class DBServiceImpl implements DBService {
     public Optional<Activity> findOpenActivity(UUID tokenId, String bpmnElementId) {
         return activityRepository.findFirstByTokenAndBpmnElementIdAndParentActivityIdIsNullAndCompletedAtIsNullOrderByCreatedAtDesc(tokenId, bpmnElementId)
             .map(this::getActivity);
+    }
+
+    @Override
+    public Optional<Activity> findActivityForUpdateSkipLocked(UUID activityId) {
+        return activityRepository.findByIdForUpdateSkipLocked(activityId).map(this::getActivity);
+    }
+
+    @Override
+    public List<Activity> findOpenActivities(UUID processInstanceId) {
+        return activityRepository.findByProcessInstanceIdAndCompletedAtIsNull(processInstanceId).stream()
+            .map(this::getActivity)
+            .toList();
+    }
+
+    @Override
+    public long countOpenActivities(UUID processInstanceId) {
+        return activityRepository.countByProcessInstanceIdAndCompletedAtIsNull(processInstanceId);
+    }
+
+    @Override
+    public ProcessInstance getProcessInstanceForUpdate(UUID processInstanceId) {
+        return processInstanceMapper.toDTO(processInstanceRepository.findByIdForUpdate(processInstanceId).orElseThrow());
+    }
+
+    @Override
+    public Optional<ProcessInstance> findChildProcessInstance(UUID parentActivityId) {
+        return processInstanceRepository.findFirstByParentActivityId(parentActivityId).map(processInstanceMapper::toDTO);
+    }
+
+    @Override
+    public boolean hasServiceTask(UUID activityId) {
+        return serviceTaskRepository.existsById(activityId);
+    }
+
+    @Override
+    public void cancelUserTask(UUID userTaskId) {
+        userTaskRepository.setCanceledAt(userTaskId, Instant.now());
+    }
+
+    @Override
+    public void cancelServiceTask(UUID serviceTaskId) {
+        serviceTaskRepository.setCanceledAt(serviceTaskId, Instant.now());
+    }
+
+    @Override
+    public UUID createTimer(UUID processInstanceId, UUID activityId, String bpmnElementId, TimerSchedule schedule) {
+        TimerEntity entity = new TimerEntity();
+        entity.setId(UUID.randomUUID());
+        entity.setProcessInstanceId(processInstanceId);
+        entity.setActivityId(activityId);
+        entity.setBpmnElementId(bpmnElementId);
+        entity.setDueAt(schedule.dueAt());
+        entity.setStatus(TimerStatus.SCHEDULED);
+        entity.setCycleInterval(schedule.cycleInterval());
+        entity.setRemainingRepetitions(schedule.remainingRepetitions());
+        entity.setCreatedAt(clock.instant());
+        timerRepository.save(entity);
+        return entity.getId();
+    }
+
+    @Override
+    public void cancelTimers(UUID activityId) {
+        timerRepository.cancelScheduled(activityId, clock.instant());
+    }
+
+    @Override
+    public List<Timer> findDueTimers(Instant now, int limit) {
+        return timerRepository.findDue(now, PageRequest.of(0, limit)).stream()
+            .map(DBServiceImpl::toTimer)
+            .toList();
+    }
+
+    @Override
+    public Optional<Timer> getTimerForUpdate(UUID timerId) {
+        return timerRepository.findByIdForUpdate(timerId).map(DBServiceImpl::toTimer);
+    }
+
+    @Override
+    public void setTimerStatus(UUID timerId, TimerStatus status) {
+        TimerEntity entity = timerRepository.findById(timerId).orElseThrow();
+        entity.setStatus(status);
+        if (status != TimerStatus.SCHEDULED) {
+            entity.setCompletedAt(clock.instant());
+        }
+        timerRepository.save(entity);
+    }
+
+    @Override
+    public void rescheduleTimer(UUID timerId, Instant dueAt, Integer remainingRepetitions) {
+        TimerEntity entity = timerRepository.findById(timerId).orElseThrow();
+        entity.setDueAt(dueAt);
+        entity.setRemainingRepetitions(remainingRepetitions);
+        timerRepository.save(entity);
+    }
+
+    private static Timer toTimer(TimerEntity entity) {
+        Timer timer = new Timer();
+        timer.setId(entity.getId());
+        timer.setProcessInstanceId(entity.getProcessInstanceId());
+        timer.setActivityId(entity.getActivityId());
+        timer.setBpmnElementId(entity.getBpmnElementId());
+        timer.setDueAt(entity.getDueAt());
+        timer.setStatus(entity.getStatus());
+        timer.setCycleInterval(entity.getCycleInterval());
+        timer.setRemainingRepetitions(entity.getRemainingRepetitions());
+        return timer;
     }
 
     private Activity getActivity(ActivityEntity activityEntity) {

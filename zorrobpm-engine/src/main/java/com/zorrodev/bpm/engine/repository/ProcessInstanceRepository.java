@@ -2,14 +2,17 @@ package com.zorrodev.bpm.engine.repository;
 
 import com.zorrodev.bpm.engine.entity.ActivityEntity;
 import com.zorrodev.bpm.engine.entity.ProcessInstanceEntity;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface ProcessInstanceRepository extends JpaRepository<ProcessInstanceEntity, UUID>, JpaSpecificationExecutor<ProcessInstanceEntity> {
@@ -39,6 +42,12 @@ public interface ProcessInstanceRepository extends JpaRepository<ProcessInstance
     static Specification<ProcessInstanceEntity> byIds(List<UUID> ids) {
         return (root, query, criteriaBuilder) ->  root.get("id").in(ids);
     }
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT pi FROM ProcessInstanceEntity pi WHERE pi.id = :id")
+    Optional<ProcessInstanceEntity> findByIdForUpdate(UUID id);
+
+    Optional<ProcessInstanceEntity> findFirstByParentActivityId(UUID parentActivityId);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE ProcessInstanceEntity pi SET pi.completedAt = :completedAt WHERE pi.id = :id")

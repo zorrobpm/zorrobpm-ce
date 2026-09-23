@@ -1,0 +1,78 @@
+databaseChangeLog:
+  - logicalFilePath: 20260923-026
+  - changeSet:
+      id: 20260923-026
+      author: zorrodev
+      comment: >
+        Boundary timers. One row per armed timer of a host activity; a cycle keeps one row and moves
+        due_at forward. The (status, due_at) index serves the poller, the activity_id index serves
+        cancellation when the host ends.
+      changes:
+        - createTable:
+            tableName: timers
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_timers
+              - column:
+                  name: process_instance_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_timers__process_instance_id
+                    referencedTableName: process_instances
+                    referencedColumnNames: id
+              - column:
+                  name: activity_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_timers__activity_id
+                    referencedTableName: activities
+                    referencedColumnNames: id
+              - column:
+                  name: bpmn_element_id
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: due_at
+                  type: datetime with timezone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: varchar(16)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: cycle_interval
+                  type: varchar(255)
+              - column:
+                  name: remaining_repetitions
+                  type: int
+              - column:
+                  name: created_at
+                  type: datetime with timezone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: completed_at
+                  type: datetime with timezone
+        - createIndex:
+            tableName: timers
+            indexName: ix_timers__status_due_at
+            columns:
+              - column:
+                  name: status
+              - column:
+                  name: due_at
+        - createIndex:
+            tableName: timers
+            indexName: ix_timers__activity_id
+            columns:
+              - column:
+                  name: activity_id

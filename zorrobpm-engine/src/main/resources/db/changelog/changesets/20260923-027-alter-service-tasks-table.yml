@@ -1,0 +1,13 @@
+databaseChangeLog:
+  - logicalFilePath: 20260923-027
+  - changeSet:
+      id: 20260923-027
+      author: zorrodev
+      comment: Set when a boundary timer interrupts the service task; completed_at is set too.
+      changes:
+        - addColumn:
+            tableName: service_tasks
+            columns:
+              - column:
+                  name: canceled_at
+                  type: datetime with timezone

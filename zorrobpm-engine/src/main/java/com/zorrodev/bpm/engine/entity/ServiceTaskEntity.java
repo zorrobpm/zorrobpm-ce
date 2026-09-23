@@ -21,5 +21,6 @@ public class ServiceTaskEntity {
     private String bpmnElementId;
     private Instant createdAt;
     private Instant completedAt;
+    private Instant canceledAt;
     private String jobType;
 }
