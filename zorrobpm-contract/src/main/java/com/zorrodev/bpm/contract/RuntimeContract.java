@@ -1,5 +1,6 @@
 package com.zorrodev.bpm.contract;
 
+import com.zorrodev.bpm.contract.dto.BpmnErrorOutcomeDTO;
 import com.zorrodev.bpm.contract.dto.ClaimTaskDTO;
 import com.zorrodev.bpm.contract.dto.CompleteTaskDTO;
 import com.zorrodev.bpm.contract.dto.FailServiceTaskDTO;
@@ -7,6 +8,7 @@ import com.zorrodev.bpm.contract.dto.IdDTO;
 import com.zorrodev.bpm.contract.dto.ResolveIncidentDTO;
 import com.zorrodev.bpm.contract.dto.ServiceTaskFailureDTO;
 import com.zorrodev.bpm.contract.dto.StartProcessInstanceDTO;
+import com.zorrodev.bpm.contract.dto.ThrowBpmnErrorDTO;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.service.annotation.PostExchange;
@@ -23,6 +25,9 @@ public interface RuntimeContract {
 
     @PostExchange("/service-tasks/{id}/fail")
     ServiceTaskFailureDTO failServiceTask(@PathVariable UUID id, @RequestBody FailServiceTaskDTO dto);
+
+    @PostExchange("/service-tasks/{id}/bpmn-error")
+    BpmnErrorOutcomeDTO throwBpmnError(@PathVariable UUID id, @RequestBody ThrowBpmnErrorDTO dto);
 
     @PostExchange("/user-tasks/{id}/complete")
     IdDTO completeUserTask(@PathVariable UUID id, @RequestBody CompleteTaskDTO dto);

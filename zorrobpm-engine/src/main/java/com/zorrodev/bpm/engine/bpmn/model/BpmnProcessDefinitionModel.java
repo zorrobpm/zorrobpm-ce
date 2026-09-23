@@ -56,11 +56,22 @@ public class BpmnProcessDefinitionModel {
     }
 
     /**
-     * Boundary events attached to the given host element.
+     * Boundary timers attached to the given host element.
      */
     public List<BpmnElementModel> getBoundaryEvents(String hostElementId) {
+        return boundaryEvents(BpmnElementType.TIMER_BOUNDARY_EVENT, hostElementId);
+    }
+
+    /**
+     * Error boundary events attached to the given host element.
+     */
+    public List<BpmnElementModel> getErrorBoundaryEvents(String hostElementId) {
+        return boundaryEvents(BpmnElementType.ERROR_BOUNDARY_EVENT, hostElementId);
+    }
+
+    private List<BpmnElementModel> boundaryEvents(BpmnElementType type, String hostElementId) {
         return elements.values().stream()
-            .filter(e -> e.getType() == BpmnElementType.TIMER_BOUNDARY_EVENT)
+            .filter(e -> e.getType() == type)
             .filter(e -> hostElementId.equals(e.getExtensions().getBoundaryEventExtension().getAttachedTo()))
             .sorted(Comparator.comparing(BpmnElementModel::getId))
             .toList();

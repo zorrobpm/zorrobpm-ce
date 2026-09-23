@@ -19,6 +19,7 @@ import com.zorrodev.bpm.engine.bpmn.model.MultiInstanceExtensionModel;
 import com.zorrodev.bpm.engine.bpmn.model.ServiceTaskExtensionModel;
 import com.zorrodev.bpm.engine.bpmn.xml.extension.UserTaskExtensionModel;
 import com.zorrodev.bpm.engine.dto.Activity;
+import com.zorrodev.bpm.engine.dto.BpmnErrorOutcome;
 import com.zorrodev.bpm.engine.dto.FailureOutcome;
 import com.zorrodev.bpm.contract.dto.Incident;
 import com.zorrodev.bpm.engine.dto.ResolvedAssignment;
@@ -350,6 +351,97 @@ public class ActivityServiceImpl implements ActivityService {
 
         log.warn("{}/{}: Incident {} on {}: {}/{}: {} ({})", activity.getProcessInstanceId(), activity.getToken(), incidentId, activity.getType(), serviceTaskId, activity.getBpmnElementId(), error.getMessage(), error.getErrorCode());
         return new FailureOutcome(incidentId, 0, null);
+    }
+
+    /**
+     * The error boundary event that catches a BPMN error, with the activity it is attached to.
+     */
+    private record ErrorCatch(Activity host, BpmnProcessDefinitionModel bpmn, BpmnElementModel boundaryEvent) {
+    }
+
+    @Override
+    public BpmnErrorOutcome throwBpmnError(UUID serviceTaskId, String errorCode, String message, List<ProcessVariable> variables) {
+        if (!dbService.hasServiceTask(serviceTaskId)) {
+            throw new ServiceTaskNotFoundException("Service task " + serviceTaskId + " not found");
+        }
+        // The row lock serializes the error with a completion, a failure or a boundary timer firing on this task.
+        Activity activity = dbService.getActivityForUpdate(serviceTaskId);
+        if (activity.getCompletedAt() != null) {
+            throw new TaskNotActiveException("Service task " + serviceTaskId + " is not active: " + activity.getStatus());
+        }
+
+        Optional<UUID> openIncidentId = dbService.findOpenIncidentId(serviceTaskId);
+        if (openIncidentId.isPresent()) {
+            log.info("{}/{}: Ignoring BPMN error {} of {} {}/{}: incident {} is open", activity.getProcessInstanceId(), activity.getToken(), errorCode, activity.getType(), serviceTaskId, activity.getBpmnElementId(), openIncidentId.get());
+            return new BpmnErrorOutcome(false, null, null, openIncidentId.get());
+        }
+        ServiceTaskRetryState state = dbService.getServiceTaskRetryState(serviceTaskId);
+        if (state.nextRetryAt() != null) {
+            // The job is not with a worker while a retry is pending: this is a late or repeated reply.
+            throw new TaskNotActiveException("Service task " + serviceTaskId + " is not active: retry is pending at " + state.nextRetryAt());
+        }
+
+        Optional<ErrorCatch> errorCatch = findErrorCatch(activity, errorCode);
+        if (errorCatch.isEmpty()) {
+            ErrorReport error = new ErrorReport(errorCode,
+                message == null || message.isBlank() ? "Unhandled BPMN error '" + errorCode + "'" : message,
+                "No error boundary event catches BPMN error '" + errorCode + "' thrown by '" + activity.getBpmnElementId() + "'");
+            UUID incidentId = dbService.createIncident(serviceTaskId, error);
+            dbService.setActivityStatus(serviceTaskId, ActivityStatus.ERROR);
+            log.warn("{}/{}: Incident {} on {}: {}/{}: unhandled BPMN error {} ({})", activity.getProcessInstanceId(), activity.getToken(), incidentId, activity.getType(), serviceTaskId, activity.getBpmnElementId(), errorCode, message);
+            return new BpmnErrorOutcome(false, null, null, incidentId);
+        }
+
+        Activity host = errorCatch.get().host();
+        BpmnElementModel boundaryEvent = errorCatch.get().boundaryEvent();
+        UUID processInstanceId = host.getProcessInstanceId();
+        log.info("{}/{}: BPMN error {} of {} {}/{} caught by {} on {} {}/{}", activity.getProcessInstanceId(), activity.getToken(), errorCode, activity.getType(), serviceTaskId, activity.getBpmnElementId(), boundaryEvent.getId(), host.getType(), host.getId(), host.getBpmnElementId());
+        interruptHost(host);
+        if (variables != null && !variables.isEmpty()) {
+            dbService.setVariables(processInstanceId, variables);
+        }
+        passBoundaryEvent(processInstanceId, host.getToken(), errorCatch.get().bpmn(), boundaryEvent);
+        return new BpmnErrorOutcome(true, boundaryEvent.getId(), processInstanceId, null);
+    }
+
+    /**
+     * The nearest error boundary event catching the code: on the service task, then on the call
+     * activities up the chain of process instances. A matching code wins over an event without a code
+     * on the same level. Locks each call activity on the way, child before parent, as the completion
+     * of a child instance does.
+     */
+    private Optional<ErrorCatch> findErrorCatch(Activity serviceTask, String errorCode) {
+        Activity level = serviceTask;
+        while (true) {
+            ProcessInstance processInstance = dbService.getProcessInstance(level.getProcessInstanceId());
+            BpmnProcessDefinitionModel bpmn = bpmnService.getProcessDefinitionModelById(processInstance.getProcessDefinitionId());
+            Optional<BpmnElementModel> boundaryEvent = catchingBoundaryEvent(bpmn.getErrorBoundaryEvents(level.getBpmnElementId()), errorCode);
+            if (boundaryEvent.isPresent()) {
+                return Optional.of(new ErrorCatch(level, bpmn, boundaryEvent.get()));
+            }
+            UUID parentActivityId = processInstance.getParentActivityId();
+            if (parentActivityId == null) {
+                return Optional.empty();
+            }
+            Activity parent = dbService.getActivityForUpdate(parentActivityId);
+            if (parent.getCompletedAt() != null) {
+                // The call activity is already interrupted: there is nobody left to catch the error.
+                return Optional.empty();
+            }
+            level = parent;
+        }
+    }
+
+    private static Optional<BpmnElementModel> catchingBoundaryEvent(List<BpmnElementModel> boundaryEvents, String errorCode) {
+        Optional<BpmnElementModel> exact = boundaryEvents.stream()
+            .filter(e -> errorCode.equals(e.getExtensions().getErrorEventExtension().getErrorCode()))
+            .findFirst();
+        if (exact.isPresent()) {
+            return exact;
+        }
+        return boundaryEvents.stream()
+            .filter(e -> e.getExtensions().getErrorEventExtension().getErrorCode() == null)
+            .findFirst();
     }
 
     /** Retry settings of the service task's BPMN element; none for a task without a task definition. */
@@ -827,6 +919,7 @@ public class ActivityServiceImpl implements ActivityService {
         BpmnProcessDefinitionModel bpmn = bpmnService.getProcessDefinitionModelById(processInstance.getProcessDefinitionId());
         BpmnElementModel boundaryEvent = bpmn.getElement(timer.getBpmnElementId());
 
+        log.info("{}/{}: Timer {} fired: {} on {} {}/{}", processInstanceId, host.getToken(), timerId, boundaryEvent.getId(), host.getType(), hostActivityId, host.getBpmnElementId());
         UUID tokenId;
         if (boundaryEvent.getExtensions().getBoundaryEventExtension().isCancelActivity()) {
             dbService.setTimerStatus(timerId, TimerStatus.FIRED);
@@ -842,16 +935,23 @@ public class ActivityServiceImpl implements ActivityService {
             tokenId = dbService.createToken(host.getToken()).getId();
         }
 
-        UUID activityId = dbService.createActivity(processInstanceId, tokenId, boundaryEvent);
-        dbService.completeActivity(activityId);
-        log.info("{}/{}: Timer {} fired: {}/{} on {} {}/{}", processInstanceId, tokenId, timerId, activityId, boundaryEvent.getId(), host.getType(), hostActivityId, host.getBpmnElementId());
-
-        advance(processInstanceId, tokenId, bpmn, boundaryEvent);
+        passBoundaryEvent(processInstanceId, tokenId, bpmn, boundaryEvent);
         return true;
     }
 
     /**
-     * Ends the host of an interrupting boundary timer with everything under it.
+     * Enters and completes a boundary event on the token and continues along its outgoing flows.
+     */
+    private void passBoundaryEvent(UUID processInstanceId, UUID tokenId, BpmnProcessDefinitionModel bpmn, BpmnElementModel boundaryEvent) {
+        UUID activityId = dbService.createActivity(processInstanceId, tokenId, boundaryEvent);
+        dbService.completeActivity(activityId);
+        log.info("{}/{}: Entering and completing {}: {}/{}", processInstanceId, tokenId, boundaryEvent.getType(), activityId, boundaryEvent.getId());
+
+        advance(processInstanceId, tokenId, bpmn, boundaryEvent);
+    }
+
+    /**
+     * Ends the host of an interrupting boundary event (a timer or a caught BPMN error) with everything under it.
      */
     private void interruptHost(Activity host) {
         UUID hostId = host.getId();

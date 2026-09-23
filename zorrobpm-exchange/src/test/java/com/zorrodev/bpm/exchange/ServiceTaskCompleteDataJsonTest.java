@@ -25,6 +25,7 @@ class ServiceTaskCompleteDataJsonTest {
     void knownStatuses() {
         assertThat(read("{" + ID + ",\"status\":\"SUCCESS\"}").getStatus()).isEqualTo(ServiceTaskResultStatus.SUCCESS);
         assertThat(read("{" + ID + ",\"status\":\"FAILURE\"}").getStatus()).isEqualTo(ServiceTaskResultStatus.FAILURE);
+        assertThat(read("{" + ID + ",\"status\":\"BPMN_ERROR\"}").getStatus()).isEqualTo(ServiceTaskResultStatus.BPMN_ERROR);
     }
 
     @Test
@@ -63,6 +64,17 @@ class ServiceTaskCompleteDataJsonTest {
         ServiceTaskCompleteData data = read("{" + ID + ",\"status\":\"SUCCESS\",\"attempt\":3}");
 
         assertThat(data.getStatus()).isEqualTo(ServiceTaskResultStatus.SUCCESS);
+    }
+
+    @Test
+    void bpmnErrorFieldsAreRead() {
+        ServiceTaskCompleteData data = read("{" + ID + ",\"status\":\"BPMN_ERROR\",\"errorCode\":\"CUSTOMER_NOT_FOUND\","
+            + "\"message\":\"no customer 42\",\"variables\":[{\"name\":\"customerId\",\"value\":\"42\",\"type\":\"LONG\"}]}");
+
+        assertThat(data.getStatus()).isEqualTo(ServiceTaskResultStatus.BPMN_ERROR);
+        assertThat(data.getErrorCode()).isEqualTo("CUSTOMER_NOT_FOUND");
+        assertThat(data.getMessage()).isEqualTo("no customer 42");
+        assertThat(data.getVariables()).singleElement().extracting(ProcessVariable::getName).isEqualTo("customerId");
     }
 
     @Test

@@ -76,9 +76,10 @@ class BpmnParseBoundaryTimerTest {
 
     @ParameterizedTest(name = "{0}")
     @CsvSource(delimiter = '|', value = {
-        "error boundary event        | charge  | true  | <bpmn:errorEventDefinition />                                                                     | only timer boundary events",
-        "message boundary event      | approve | false | <bpmn:messageEventDefinition messageRef=\"m\" />                                                  | only timer boundary events",
-        "no event definition         | approve | true  | <bpmn:documentation>none</bpmn:documentation>                                                     | only timer boundary events",
+        "signal boundary event       | charge  | true  | <bpmn:signalEventDefinition signalRef=\"s\" />                                                    | only timer and error boundary events",
+        "message boundary event      | approve | false | <bpmn:messageEventDefinition messageRef=\"m\" />                                                  | only timer and error boundary events",
+        "no event definition         | approve | true  | <bpmn:documentation>none</bpmn:documentation>                                                     | only timer and error boundary events",
+        "timer and error together    | charge  | true  | <bpmn:timerEventDefinition><bpmn:timeDuration>PT1H</bpmn:timeDuration></bpmn:timerEventDefinition><bpmn:errorEventDefinition /> | only timer and error boundary events",
         "timer on a gateway          | xor     | true  | <bpmn:timerEventDefinition><bpmn:timeDuration>PT1H</bpmn:timeDuration></bpmn:timerEventDefinition> | not on EXCLUSIVE_GATEWAY",
         "unknown host                | nothing | true  | <bpmn:timerEventDefinition><bpmn:timeDuration>PT1H</bpmn:timeDuration></bpmn:timerEventDefinition> | does not exist",
         "timer without value         | approve | true  | <bpmn:timerEventDefinition />                                                                     | no timeDate, timeDuration or timeCycle",

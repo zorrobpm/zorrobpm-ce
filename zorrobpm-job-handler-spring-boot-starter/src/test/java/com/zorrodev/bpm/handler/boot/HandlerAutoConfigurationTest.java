@@ -4,6 +4,7 @@ import com.zorrodev.bpm.exchange.JobDetailModel;
 import com.zorrodev.bpm.exchange.ProcessVariable;
 import com.zorrodev.bpm.exchange.ServiceTaskCompleteData;
 import com.zorrodev.bpm.exchange.ServiceTaskResultStatus;
+import com.zorrodev.bpm.handler.BpmnError;
 import com.zorrodev.bpm.handler.JobFailedException;
 import com.zorrodev.bpm.handler.JobHandler;
 import org.junit.jupiter.api.Test;
@@ -14,6 +15,7 @@ import java.util.UUID;
 import java.util.function.Function;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class HandlerAutoConfigurationTest {
 
@@ -95,6 +97,46 @@ class HandlerAutoConfigurationTest {
 
         assertThat(data.getRetries()).isNull();
         assertThat(data.getRetryTimeout()).isNull();
+    }
+
+    @Test
+    void handle_bpmnErrorReturnsBpmnErrorWithVariables() {
+        ProcessVariable variable = new ProcessVariable();
+        variable.setName("customerId");
+        variable.setValue("42");
+        variable.setType("LONG");
+
+        ServiceTaskCompleteData data = HandlerAutoConfiguration.handle(handler(m -> {
+            throw new BpmnError("CUSTOMER_NOT_FOUND", "no customer 42", List.of(variable));
+        }), model());
+
+        assertThat(data.getStatus()).isEqualTo(ServiceTaskResultStatus.BPMN_ERROR);
+        assertThat(data.getErrorCode()).isEqualTo("CUSTOMER_NOT_FOUND");
+        assertThat(data.getMessage()).isEqualTo("no customer 42");
+        assertThat(data.getDetails()).isNull();
+        assertThat(data.getRetries()).isNull();
+        assertThat(data.getVariables()).singleElement().satisfies(v -> {
+            assertThat(v.getName()).isEqualTo("customerId");
+            assertThat(v.getValue()).isEqualTo("42");
+            assertThat(v.getType()).isEqualTo("LONG");
+        });
+    }
+
+    @Test
+    void handle_bpmnErrorWithoutVariables() {
+        ServiceTaskCompleteData data = HandlerAutoConfiguration.handle(handler(m -> {
+            throw new BpmnError("CUSTOMER_NOT_FOUND");
+        }), model());
+
+        assertThat(data.getStatus()).isEqualTo(ServiceTaskResultStatus.BPMN_ERROR);
+        assertThat(data.getMessage()).isNull();
+        assertThat(data.getVariables()).isEmpty();
+    }
+
+    @Test
+    void bpmnErrorRequiresCode() {
+        assertThatThrownBy(() -> new BpmnError(" ", "no code")).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new BpmnError(null)).isInstanceOf(IllegalArgumentException.class);
     }
 
     private static JobDetailModel model() {

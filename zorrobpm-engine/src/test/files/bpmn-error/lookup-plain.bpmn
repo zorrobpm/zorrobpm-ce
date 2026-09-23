@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_bpmn-error-lookup-plain" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="bpmn-error-lookup-plain" name="BPMN error nobody catches" isExecutable="true">
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>toTask</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="toTask" sourceRef="start" targetRef="lookup" />
+    <bpmn:sequenceFlow id="toDone" sourceRef="lookup" targetRef="done" />
+    <bpmn:serviceTask id="lookup" name="lookup">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="lookup" retries="2" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>toTask</bpmn:incoming>
+      <bpmn:outgoing>toDone</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="done">
+      <bpmn:incoming>toDone</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmn:error id="Error_NotFound" name="Customer not found" errorCode="CUSTOMER_NOT_FOUND" />
+</bpmn:definitions>

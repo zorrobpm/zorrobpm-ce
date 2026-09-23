@@ -3,6 +3,7 @@ package com.zorrodev.bpm.engine.service;
 import com.zorrodev.bpm.contract.dto.CompleteTaskDTO;
 import com.zorrodev.bpm.contract.dto.StartProcessInstanceDTO;
 import com.zorrodev.bpm.contract.model.ProcessVariable;
+import com.zorrodev.bpm.engine.dto.BpmnErrorOutcome;
 import com.zorrodev.bpm.engine.dto.FailureOutcome;
 import com.zorrodev.bpm.engine.dto.IdDTO;
 import com.zorrodev.bpm.engine.dto.RetryOverride;
@@ -22,6 +23,11 @@ public interface RuntimeService {
      * Reports a failure of the service task: returns the scheduled retry or the id of its open incident.
      */
     FailureOutcome failServiceTask(UUID id, String message, String errorCode, String details, RetryOverride override);
+
+    /**
+     * Throws a BPMN error on the service task: returns the catching error boundary event or the open incident.
+     */
+    BpmnErrorOutcome throwBpmnError(UUID id, String errorCode, String message, List<ProcessVariable> variables);
 
     IdDTO completeUserTask(UUID id, List<ProcessVariable> variables);
 

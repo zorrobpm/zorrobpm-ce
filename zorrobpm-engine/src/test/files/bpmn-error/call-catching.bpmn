@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_bpmn-error-call-catching" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="bpmn-error-call-catching" name="Call activity behind a catching child" isExecutable="true">
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>toTask</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="toTask" sourceRef="start" targetRef="call" />
+    <bpmn:sequenceFlow id="toDone" sourceRef="call" targetRef="done" />
+    <bpmn:callActivity id="call" name="call">
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="bpmn-error-child-catching" propagateAllChildVariables="false" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>toTask</bpmn:incoming>
+      <bpmn:outgoing>toDone</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:endEvent id="done">
+      <bpmn:incoming>toDone</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:boundaryEvent id="callAny" name="callAny" attachedToRef="call">
+      <bpmn:outgoing>to_callAny</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="callAnyDefinition" />
+    </bpmn:boundaryEvent>
+    <bpmn:sequenceFlow id="to_callAny" sourceRef="callAny" targetRef="handled" />
+    <bpmn:endEvent id="handled">
+      <bpmn:incoming>to_callAny</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmn:error id="Error_NotFound" name="Customer not found" errorCode="CUSTOMER_NOT_FOUND" />
+</bpmn:definitions>

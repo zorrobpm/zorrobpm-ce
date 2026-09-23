@@ -11,6 +11,8 @@ import com.fasterxml.jackson.annotation.JsonValue;
 public enum ServiceTaskResultStatus {
     SUCCESS,
     FAILURE,
+    /** A business error for the process to catch on an error boundary event; not a handler failure. */
+    BPMN_ERROR,
     UNSUPPORTED;
 
     @JsonCreator
@@ -21,6 +23,7 @@ public enum ServiceTaskResultStatus {
         return switch (value) {
             case "SUCCESS" -> SUCCESS;
             case "FAILURE" -> FAILURE;
+            case "BPMN_ERROR" -> BPMN_ERROR;
             default -> UNSUPPORTED;
         };
     }

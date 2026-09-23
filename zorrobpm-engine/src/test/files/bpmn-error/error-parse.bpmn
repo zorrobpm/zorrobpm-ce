@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_error-parse" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="error-parse" name="Error boundary events" isExecutable="true">
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>toLookup</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="lookup" name="Lookup">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="lookup" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>toLookup</bpmn:incoming>
+      <bpmn:outgoing>toCall</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:callActivity id="call" name="Call">
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="child" propagateAllChildVariables="false" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>toCall</bpmn:incoming>
+      <bpmn:outgoing>toDone</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:endEvent id="done">
+      <bpmn:incoming>toDone</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:boundaryEvent id="lookupNotFound" name="Not found" attachedToRef="lookup">
+      <bpmn:outgoing>toNotFound</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="lookupNotFoundDefinition" errorRef="Error_NotFound" />
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="lookupAny" name="Any error" attachedToRef="lookup">
+      <bpmn:outgoing>toAny</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="lookupAnyDefinition" />
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="lookupDeadline" name="Deadline" attachedToRef="lookup">
+      <bpmn:outgoing>toDeadline</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT5M</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="callNotFound" name="Not found in child" cancelActivity="true" attachedToRef="call">
+      <bpmn:outgoing>toChildNotFound</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="callNotFoundDefinition" errorRef="Error_NotFound" />
+    </bpmn:boundaryEvent>
+    <bpmn:endEvent id="notFound">
+      <bpmn:incoming>toNotFound</bpmn:incoming>
+      <bpmn:incoming>toChildNotFound</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="any">
+      <bpmn:incoming>toAny</bpmn:incoming>
+      <bpmn:incoming>toDeadline</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="toLookup" sourceRef="start" targetRef="lookup" />
+    <bpmn:sequenceFlow id="toCall" sourceRef="lookup" targetRef="call" />
+    <bpmn:sequenceFlow id="toDone" sourceRef="call" targetRef="done" />
+    <bpmn:sequenceFlow id="toNotFound" sourceRef="lookupNotFound" targetRef="notFound" />
+    <bpmn:sequenceFlow id="toAny" sourceRef="lookupAny" targetRef="any" />
+    <bpmn:sequenceFlow id="toDeadline" sourceRef="lookupDeadline" targetRef="any" />
+    <bpmn:sequenceFlow id="toChildNotFound" sourceRef="callNotFound" targetRef="notFound" />
+  </bpmn:process>
+  <bpmn:error id="Error_NotFound" name="Customer not found" errorCode="CUSTOMER_NOT_FOUND" />
+</bpmn:definitions>

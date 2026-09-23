@@ -1,5 +1,6 @@
 package com.zorrodev.bpm.rest.resource;
 
+import com.zorrodev.bpm.contract.dto.BpmnErrorOutcomeDTO;
 import com.zorrodev.bpm.contract.dto.ClaimTaskDTO;
 import com.zorrodev.bpm.contract.dto.CompleteTaskDTO;
 import com.zorrodev.bpm.contract.dto.FailServiceTaskDTO;
@@ -7,7 +8,9 @@ import com.zorrodev.bpm.contract.dto.IdDTO;
 import com.zorrodev.bpm.contract.dto.ResolveIncidentDTO;
 import com.zorrodev.bpm.contract.dto.ServiceTaskFailureDTO;
 import com.zorrodev.bpm.contract.dto.StartProcessInstanceDTO;
+import com.zorrodev.bpm.contract.dto.ThrowBpmnErrorDTO;
 import com.zorrodev.bpm.contract.model.ProcessVariable;
+import com.zorrodev.bpm.engine.dto.BpmnErrorOutcome;
 import com.zorrodev.bpm.engine.dto.FailureOutcome;
 import com.zorrodev.bpm.engine.dto.RetryOverride;
 import com.zorrodev.bpm.engine.service.RuntimeService;
@@ -68,6 +71,39 @@ class RuntimeResourceTest {
 
         assertThat(result.getId()).isSameAs(expected.getId());
         verify(runtimeService).completeServiceTask(id, vars);
+    }
+
+    @Test
+    void throwBpmnError_delegatesToServiceAndReturnsOutcome() {
+        UUID id = UUID.randomUUID();
+        UUID processInstanceId = UUID.randomUUID();
+        List<ProcessVariable> vars = List.of(new ProcessVariable());
+        ThrowBpmnErrorDTO dto = new ThrowBpmnErrorDTO();
+        dto.setErrorCode("CUSTOMER_NOT_FOUND");
+        dto.setMessage("no customer 42");
+        dto.setVariables(vars);
+        when(runtimeService.throwBpmnError(id, "CUSTOMER_NOT_FOUND", "no customer 42", vars))
+            .thenReturn(new BpmnErrorOutcome(true, "notFound", processInstanceId, null));
+
+        BpmnErrorOutcomeDTO result = resource.throwBpmnError(id, dto);
+
+        assertThat(result.isCaught()).isTrue();
+        assertThat(result.getBoundaryEventId()).isEqualTo("notFound");
+        assertThat(result.getProcessInstanceId()).isEqualTo(processInstanceId);
+        assertThat(result.getIncidentId()).isNull();
+    }
+
+    @Test
+    void throwBpmnError_blankCode_returnsBadRequest() {
+        for (String code : java.util.Arrays.asList(null, "", "  ")) {
+            ThrowBpmnErrorDTO dto = new ThrowBpmnErrorDTO();
+            dto.setErrorCode(code);
+
+            assertThatThrownBy(() -> resource.throwBpmnError(UUID.randomUUID(), dto))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(e -> assertThat(((ResponseStatusException) e).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+        }
+        verifyNoInteractions(runtimeService);
     }
 
     @Test

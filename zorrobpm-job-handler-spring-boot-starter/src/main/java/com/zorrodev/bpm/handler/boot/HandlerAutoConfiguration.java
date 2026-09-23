@@ -5,6 +5,7 @@ import com.zorrodev.bpm.exchange.JobDetailModel;
 import com.zorrodev.bpm.exchange.ProcessVariable;
 import com.zorrodev.bpm.exchange.ServiceTaskCompleteData;
 import com.zorrodev.bpm.exchange.ServiceTaskResultStatus;
+import com.zorrodev.bpm.handler.BpmnError;
 import com.zorrodev.bpm.handler.JobFailedException;
 import com.zorrodev.bpm.handler.JobHandler;
 import jakarta.annotation.PostConstruct;
@@ -65,22 +66,23 @@ public class HandlerAutoConfiguration {
 
     /**
      * Runs the handler and builds the message for the engine: SUCCESS with the handler's
-     * variables, or FAILURE with the error code, text and stack trace when the handler throws, plus
-     * the retry override of a {@link JobFailedException}.
+     * variables, BPMN_ERROR with the code, text and variables of a {@link BpmnError}, or FAILURE with
+     * the error code, text and stack trace when the handler throws anything else, plus the retry
+     * override of a {@link JobFailedException}.
      */
     static ServiceTaskCompleteData handle(JobHandler handler, JobDetailModel model) {
         ServiceTaskCompleteData completeData = new ServiceTaskCompleteData();
         completeData.setServiceTaskId(model.getServiceTaskId());
         try {
-            List<ProcessVariable> result = handler.handleJob(model).stream().map(x -> {
-                ProcessVariable v = new ProcessVariable();
-                v.setName(x.getName());
-                v.setValue(x.getValue());
-                v.setType(x.getType().toString());
-                return v;
-            }).toList();
             completeData.setStatus(ServiceTaskResultStatus.SUCCESS);
-            completeData.setVariables(result);
+            completeData.setVariables(toVariables(handler.handleJob(model)));
+        } catch (BpmnError e) {
+            // An expected business outcome, not a failure: no stack trace, no retries.
+            log.info("Job {} threw BPMN error {} for service task {}: {}", handler.getJob(), e.getErrorCode(), model.getServiceTaskId(), e.getMessage());
+            completeData.setStatus(ServiceTaskResultStatus.BPMN_ERROR);
+            completeData.setErrorCode(e.getErrorCode());
+            completeData.setMessage(e.getMessage());
+            completeData.setVariables(toVariables(e.getVariables()));
         } catch (Exception e) {
             log.error("Job {} failed for service task {}", handler.getJob(), model.getServiceTaskId(), e);
             JobFailedException failed = e instanceof JobFailedException jobFailed ? jobFailed : null;
@@ -96,5 +98,15 @@ public class HandlerAutoConfiguration {
             completeData.setVariables(List.of());
         }
         return completeData;
+    }
+
+    private static List<ProcessVariable> toVariables(List<ProcessVariable> variables) {
+        return variables.stream().map(x -> {
+            ProcessVariable v = new ProcessVariable();
+            v.setName(x.getName());
+            v.setValue(x.getValue());
+            v.setType(x.getType().toString());
+            return v;
+        }).toList();
     }
 }

@@ -1,6 +1,7 @@
 package com.zorrodev.bpm.rabbitmq;
 
 import com.zorrodev.bpm.exchange.ProcessVariable;
+import com.zorrodev.bpm.exchange.ServiceTaskBpmnErrorThrown;
 import com.zorrodev.bpm.exchange.ServiceTaskCompleteData;
 import com.zorrodev.bpm.exchange.ServiceTaskCompleted;
 import com.zorrodev.bpm.exchange.ServiceTaskFailed;
@@ -145,6 +146,37 @@ class ServiceTaskListenerTest {
         org.mockito.Mockito.reset(publisher);
         listener.on(negative);
         assertThat(captured(ServiceTaskFailed.class).getRetryTimeout()).isNull();
+    }
+
+    @Test
+    void bpmnErrorPublishesThrownWithVariables() {
+        ServiceTaskCompleteData data = data(ServiceTaskResultStatus.BPMN_ERROR);
+        data.setErrorCode("CUSTOMER_NOT_FOUND");
+        data.setMessage("no customer 42");
+
+        listener.on(data);
+
+        ServiceTaskBpmnErrorThrown event = captured(ServiceTaskBpmnErrorThrown.class);
+        assertThat(event.getServiceTaskId()).isEqualTo(data.getServiceTaskId());
+        assertThat(event.getErrorCode()).isEqualTo("CUSTOMER_NOT_FOUND");
+        assertThat(event.getMessage()).isEqualTo("no customer 42");
+        assertThat(event.getVariables()).isSameAs(data.getVariables());
+    }
+
+    @Test
+    void bpmnErrorWithoutCodeIsFailureWithoutRetries() {
+        ServiceTaskCompleteData data = data(ServiceTaskResultStatus.BPMN_ERROR);
+        data.setErrorCode(" ");
+        data.setMessage("no customer 42");
+
+        listener.on(data);
+
+        ServiceTaskFailed event = captured(ServiceTaskFailed.class);
+        assertThat(event.getServiceTaskId()).isEqualTo(data.getServiceTaskId());
+        assertThat(event.getErrorCode()).isEqualTo("INVALID_BPMN_ERROR");
+        assertThat(event.getMessage()).isNotBlank();
+        assertThat(event.getDetails()).isEqualTo("no customer 42");
+        assertThat(event.getRetries()).isZero();
     }
 
     private <T> T captured(Class<T> type) {

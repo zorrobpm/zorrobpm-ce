@@ -3,6 +3,7 @@ package com.zorrodev.bpm.engine.service.impl;
 import com.zorrodev.bpm.contract.dto.StartProcessInstanceDTO;
 import com.zorrodev.bpm.contract.model.ProcessDefinition;
 import com.zorrodev.bpm.contract.model.ProcessVariable;
+import com.zorrodev.bpm.engine.dto.BpmnErrorOutcome;
 import com.zorrodev.bpm.engine.dto.FailureOutcome;
 import com.zorrodev.bpm.engine.dto.IdDTO;
 import com.zorrodev.bpm.engine.dto.RetryOverride;
@@ -132,6 +133,18 @@ class RuntimeServiceImplTest {
         assertThat(error.getValue().getMessage()).isEqualTo("boom");
         assertThat(error.getValue().getErrorCode()).isEqualTo("CARD_DECLINED");
         assertThat(error.getValue().getDetails()).isEqualTo("stack");
+    }
+
+    @Test
+    void throwBpmnError_delegatesAndReturnsOutcome() {
+        UUID id = UUID.randomUUID();
+        List<ProcessVariable> vars = List.of(new ProcessVariable());
+        BpmnErrorOutcome outcome = new BpmnErrorOutcome(false, null, null, UUID.randomUUID());
+        when(activityService.throwBpmnError(id, "CUSTOMER_NOT_FOUND", "no customer", vars)).thenReturn(outcome);
+
+        BpmnErrorOutcome result = runtimeService.throwBpmnError(id, "CUSTOMER_NOT_FOUND", "no customer", vars);
+
+        assertThat(result).isEqualTo(outcome);
     }
 
     @Test

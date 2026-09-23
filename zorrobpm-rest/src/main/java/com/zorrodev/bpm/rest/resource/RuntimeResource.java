@@ -1,6 +1,7 @@
 package com.zorrodev.bpm.rest.resource;
 
 import com.zorrodev.bpm.contract.RuntimeContract;
+import com.zorrodev.bpm.contract.dto.BpmnErrorOutcomeDTO;
 import com.zorrodev.bpm.contract.dto.ClaimTaskDTO;
 import com.zorrodev.bpm.contract.dto.CompleteTaskDTO;
 import com.zorrodev.bpm.contract.dto.FailServiceTaskDTO;
@@ -8,6 +9,8 @@ import com.zorrodev.bpm.contract.dto.IdDTO;
 import com.zorrodev.bpm.contract.dto.ResolveIncidentDTO;
 import com.zorrodev.bpm.contract.dto.ServiceTaskFailureDTO;
 import com.zorrodev.bpm.contract.dto.StartProcessInstanceDTO;
+import com.zorrodev.bpm.contract.dto.ThrowBpmnErrorDTO;
+import com.zorrodev.bpm.engine.dto.BpmnErrorOutcome;
 import com.zorrodev.bpm.engine.dto.FailureOutcome;
 import com.zorrodev.bpm.engine.dto.RetryOverride;
 import com.zorrodev.bpm.engine.service.RuntimeService;
@@ -54,6 +57,16 @@ public class RuntimeResource implements RuntimeContract {
         RetryOverride override = new RetryOverride(dto.getRetries(), retryTimeout(dto.getRetryTimeout()));
         FailureOutcome outcome = runtimeService.failServiceTask(id, dto.getMessage(), dto.getErrorCode(), dto.getDetails(), override);
         return new ServiceTaskFailureDTO(outcome.incidentId(), outcome.retries(), outcome.nextRetryAt());
+    }
+
+    @Transactional
+    @Override
+    public BpmnErrorOutcomeDTO throwBpmnError(@PathVariable UUID id, @RequestBody ThrowBpmnErrorDTO dto) {
+        if (dto.getErrorCode() == null || dto.getErrorCode().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "errorCode is required");
+        }
+        BpmnErrorOutcome outcome = runtimeService.throwBpmnError(id, dto.getErrorCode(), dto.getMessage(), dto.getVariables());
+        return new BpmnErrorOutcomeDTO(outcome.caught(), outcome.boundaryEventId(), outcome.processInstanceId(), outcome.incidentId());
     }
 
     private static Duration retryTimeout(String value) {

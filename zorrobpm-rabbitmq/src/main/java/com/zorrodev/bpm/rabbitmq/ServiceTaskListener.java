@@ -1,6 +1,7 @@
 package com.zorrodev.bpm.rabbitmq;
 
 import com.zorrodev.bpm.exchange.JobDetailModel;
+import com.zorrodev.bpm.exchange.ServiceTaskBpmnErrorThrown;
 import com.zorrodev.bpm.exchange.ServiceTaskCompleteData;
 import com.zorrodev.bpm.exchange.ServiceTaskCompleted;
 import com.zorrodev.bpm.exchange.ServiceTaskEnqueued;
@@ -26,6 +27,7 @@ import java.util.UUID;
 public class ServiceTaskListener {
 
     static final String UNSUPPORTED_RESULT_STATUS = "UNSUPPORTED_RESULT_STATUS";
+    static final String INVALID_BPMN_ERROR = "INVALID_BPMN_ERROR";
 
     private final AmqpAdmin amqpAdmin;
     private final RabbitTemplate rabbitTemplate;
@@ -55,6 +57,25 @@ public class ServiceTaskListener {
             failed.setRetries(retries(data));
             failed.setRetryTimeout(retryTimeout(data));
             publisher.publishEvent(failed);
+            return;
+        }
+        if (data.getStatus() == ServiceTaskResultStatus.BPMN_ERROR) {
+            if (data.getErrorCode() == null || data.getErrorCode().isBlank()) {
+                // Nothing to match a boundary event against; stop the process on the task instead of losing the message.
+                log.warn("Service task BPMN error without a code received - {}", data.getServiceTaskId());
+                ServiceTaskFailed failed = failed(data.getServiceTaskId(), INVALID_BPMN_ERROR,
+                    "BPMN error without an error code", data.getMessage());
+                failed.setRetries(0);
+                publisher.publishEvent(failed);
+                return;
+            }
+            log.info("Service task BPMN error message received - {}: {} ({})", data.getServiceTaskId(), data.getErrorCode(), data.getMessage());
+            ServiceTaskBpmnErrorThrown thrown = new ServiceTaskBpmnErrorThrown();
+            thrown.setServiceTaskId(data.getServiceTaskId());
+            thrown.setErrorCode(data.getErrorCode());
+            thrown.setMessage(data.getMessage());
+            thrown.setVariables(data.getVariables());
+            publisher.publishEvent(thrown);
             return;
         }
         if (data.getStatus() == ServiceTaskResultStatus.UNSUPPORTED) {
