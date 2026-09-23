@@ -8,6 +8,8 @@ import jakarta.xml.bind.annotation.XmlRootElement;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.List;
+
 @Getter
 @Setter
 @XmlRootElement(name = "definitions")
@@ -17,6 +19,8 @@ public class BpmnDefinitionsModel {
     private String id;
     @XmlElement(name = "process", namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL")
     private BpmnProcessDefinitionModel process;
+    @XmlElement(name = "error", namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL")
+    private List<BpmnErrorModel> errors;
     @XmlAttribute(namespace = "http://camunda.org/schema/modeler/1.0", name = "executionPlatformVersion")
     private String executionPlatformVersion;
 }

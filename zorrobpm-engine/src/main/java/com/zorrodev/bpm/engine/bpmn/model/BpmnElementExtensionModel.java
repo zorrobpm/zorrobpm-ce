@@ -15,4 +15,5 @@ public class BpmnElementExtensionModel {
     private CallActivityExtensionModel callActivityExtension;
     private MultiInstanceExtensionModel multiInstanceExtension;
     private BoundaryEventExtensionModel boundaryEventExtension;
+    private ErrorEventExtensionModel errorEventExtension;
 }

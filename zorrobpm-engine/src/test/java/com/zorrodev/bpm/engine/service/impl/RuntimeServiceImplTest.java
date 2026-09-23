@@ -3,12 +3,17 @@ package com.zorrodev.bpm.engine.service.impl;
 import com.zorrodev.bpm.contract.dto.StartProcessInstanceDTO;
 import com.zorrodev.bpm.contract.model.ProcessDefinition;
 import com.zorrodev.bpm.contract.model.ProcessVariable;
+import com.zorrodev.bpm.engine.dto.BpmnErrorOutcome;
+import com.zorrodev.bpm.engine.dto.FailureOutcome;
 import com.zorrodev.bpm.engine.dto.IdDTO;
+import com.zorrodev.bpm.engine.dto.RetryOverride;
 import com.zorrodev.bpm.engine.service.ActivityService;
 import com.zorrodev.bpm.engine.service.BpmnService;
 import com.zorrodev.bpm.engine.service.DBService;
+import com.zorrodev.bpm.exchange.ErrorReport;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -115,14 +120,31 @@ class RuntimeServiceImplTest {
     }
 
     @Test
-    void failServiceTask_delegatesAndReturnsIncidentId() {
+    void failServiceTask_delegatesAndReturnsOutcome() {
         UUID id = UUID.randomUUID();
-        UUID incidentId = UUID.randomUUID();
-        when(activityService.failServiceTask(id, "boom")).thenReturn(incidentId);
+        FailureOutcome outcome = new FailureOutcome(UUID.randomUUID(), 0, null);
+        RetryOverride override = new RetryOverride(0, null);
+        ArgumentCaptor<ErrorReport> error = ArgumentCaptor.forClass(ErrorReport.class);
+        when(activityService.failServiceTask(eq(id), error.capture(), eq(override))).thenReturn(outcome);
 
-        IdDTO result = runtimeService.failServiceTask(id, "boom");
+        FailureOutcome result = runtimeService.failServiceTask(id, "boom", "CARD_DECLINED", "stack", override);
 
-        assertThat(result.getId()).isEqualTo(incidentId);
+        assertThat(result).isEqualTo(outcome);
+        assertThat(error.getValue().getMessage()).isEqualTo("boom");
+        assertThat(error.getValue().getErrorCode()).isEqualTo("CARD_DECLINED");
+        assertThat(error.getValue().getDetails()).isEqualTo("stack");
+    }
+
+    @Test
+    void throwBpmnError_delegatesAndReturnsOutcome() {
+        UUID id = UUID.randomUUID();
+        List<ProcessVariable> vars = List.of(new ProcessVariable());
+        BpmnErrorOutcome outcome = new BpmnErrorOutcome(false, null, null, UUID.randomUUID());
+        when(activityService.throwBpmnError(id, "CUSTOMER_NOT_FOUND", "no customer", vars)).thenReturn(outcome);
+
+        BpmnErrorOutcome result = runtimeService.throwBpmnError(id, "CUSTOMER_NOT_FOUND", "no customer", vars);
+
+        assertThat(result).isEqualTo(outcome);
     }
 
     @Test

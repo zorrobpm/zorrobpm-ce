@@ -194,10 +194,46 @@ public class IncidentResolveIntegrationTests {
         assertThat(processInstanceRepository.findById(processInstanceId).orElseThrow().getCompletedAt()).isNotNull();
     }
 
+    @Transactional
+    @Test
+    void jobFailureCarriesCodeAndDetails() throws Exception {
+        UUID processInstanceId = start("process2.bpmn");
+        UUID serviceTaskId = singleOpenServiceTask(processInstanceId).getId();
+
+        fail(serviceTaskId, "card declined", "CARD_DECLINED", "java.lang.IllegalStateException: card declined\n\tat Charge.run");
+        refresh();
+
+        IncidentEntity incident = single(incidents(serviceTaskId));
+        assertThat(incident.getMessage()).isEqualTo("card declined");
+        assertThat(incident.getErrorCode()).isEqualTo("CARD_DECLINED");
+        assertThat(incident.getDetails()).startsWith("java.lang.IllegalStateException: card declined");
+    }
+
+    @Transactional
+    @Test
+    void jobFailureFromOldWorkerHasEmptyCodeAndDetails() throws Exception {
+        UUID processInstanceId = start("process2.bpmn");
+        UUID serviceTaskId = singleOpenServiceTask(processInstanceId).getId();
+
+        fail(serviceTaskId, "java.lang.IllegalStateException: boom");
+        refresh();
+
+        IncidentEntity incident = single(incidents(serviceTaskId));
+        assertThat(incident.getMessage()).isEqualTo("java.lang.IllegalStateException: boom");
+        assertThat(incident.getErrorCode()).isNull();
+        assertThat(incident.getDetails()).isNull();
+    }
+
     private void fail(UUID serviceTaskId, String message) {
+        fail(serviceTaskId, message, null, null);
+    }
+
+    private void fail(UUID serviceTaskId, String message, String errorCode, String details) {
         ServiceTaskFailed event = new ServiceTaskFailed();
         event.setServiceTaskId(serviceTaskId);
         event.setMessage(message);
+        event.setErrorCode(errorCode);
+        event.setDetails(details);
         publisher.publishEvent(event);
     }
 

@@ -9,6 +9,7 @@ import com.zorrodev.bpm.engine.bpmn.model.BpmnElementType;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnProcessDefinitionModel;
 import com.zorrodev.bpm.engine.bpmn.model.ServiceTaskExtensionModel;
 import com.zorrodev.bpm.engine.dto.Activity;
+import com.zorrodev.bpm.engine.dto.ServiceTaskRetryState;
 import com.zorrodev.bpm.engine.service.BpmnService;
 import com.zorrodev.bpm.engine.service.DBService;
 import com.zorrodev.bpm.exchange.JobDetailModel;
@@ -90,6 +91,7 @@ class ServiceTaskEnqueueServiceImplTest {
         when(dbService.getProcessInstance(processInstanceId)).thenReturn(pi);
         when(bpmnService.getProcessDefinitionModelById(processDefinitionId)).thenReturn(bpmn);
         when(dbService.getVariables(processInstanceId)).thenReturn(List.of(v1, v2));
+        when(dbService.getServiceTaskRetryState(serviceTaskId)).thenReturn(new ServiceTaskRetryState(2, null));
 
         service.enqueueAfterCommit(serviceTaskId);
 
@@ -104,6 +106,7 @@ class ServiceTaskEnqueueServiceImplTest {
         assertThat(detail.getProcessDefinitionId()).isEqualTo(processDefinitionId);
         assertThat(detail.getServiceTaskKey()).isEqualTo(bpmnElementId);
         assertThat(detail.getJob()).isEqualTo("send-email");
+        assertThat(detail.getRetries()).isEqualTo(2);
         assertThat(detail.getVariables()).hasSize(2);
         assertThat(detail.getVariables().get("name").getValue()).isEqualTo("Alice");
         assertThat(detail.getVariables().get("name").getType()).isEqualTo(ProcessVariableType.STRING.toString());

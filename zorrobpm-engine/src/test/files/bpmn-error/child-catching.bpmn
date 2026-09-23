@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_bpmn-error-child-catching" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="bpmn-error-child-catching" name="Child catching its own BPMN error" isExecutable="true">
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>toTask</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="toTask" sourceRef="start" targetRef="childLookup" />
+    <bpmn:sequenceFlow id="toDone" sourceRef="childLookup" targetRef="done" />
+    <bpmn:serviceTask id="childLookup" name="childLookup">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="lookup" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>toTask</bpmn:incoming>
+      <bpmn:outgoing>toDone</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="done">
+      <bpmn:incoming>toDone</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:boundaryEvent id="childAny" name="childAny" attachedToRef="childLookup">
+      <bpmn:outgoing>to_childAny</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="childAnyDefinition" />
+    </bpmn:boundaryEvent>
+    <bpmn:sequenceFlow id="to_childAny" sourceRef="childAny" targetRef="childHandled" />
+    <bpmn:endEvent id="childHandled">
+      <bpmn:incoming>to_childAny</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmn:error id="Error_NotFound" name="Customer not found" errorCode="CUSTOMER_NOT_FOUND" />
+</bpmn:definitions>

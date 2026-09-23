@@ -19,9 +19,11 @@ public class TimerEntity {
     @Id
     private UUID id;
     private UUID processInstanceId;
-    /** The host activity the boundary timer belongs to. */
+    @Enumerated(EnumType.STRING)
+    private TimerKind kind = TimerKind.BOUNDARY;
+    /** The host activity the timer belongs to. */
     private UUID activityId;
-    /** The boundary event. */
+    /** The boundary event; for a retry — the service task. */
     private String bpmnElementId;
     private Instant dueAt;
     @Enumerated(EnumType.STRING)

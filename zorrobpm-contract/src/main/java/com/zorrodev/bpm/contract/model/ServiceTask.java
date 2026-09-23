@@ -17,4 +17,11 @@ public class ServiceTask {
     private String job;
     private Instant createdAt;
     private Instant completedAt;
+    /** Retries still available. */
+    private int retries;
+    /** Due time of the pending retry; null when none is scheduled. */
+    private Instant nextRetryAt;
+    /** Code and text of the error the last retry was scheduled for. */
+    private String lastErrorCode;
+    private String lastErrorMessage;
 }

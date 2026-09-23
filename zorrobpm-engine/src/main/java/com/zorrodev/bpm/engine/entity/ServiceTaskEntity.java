@@ -23,4 +23,11 @@ public class ServiceTaskEntity {
     private Instant completedAt;
     private Instant canceledAt;
     private String jobType;
+    /** Retries still available. */
+    private int retries;
+    /** Due time of the pending retry; null when none is scheduled. */
+    private Instant nextRetryAt;
+    /** Code and text of the error the last retry was scheduled for. */
+    private String lastErrorCode;
+    private String lastErrorMessage;
 }

@@ -60,6 +60,7 @@ public class ServiceTaskEnqueueServiceImpl implements ServiceTaskEnqueueService 
                 detail.setProcessInstanceId(processInstanceId);
                 detail.setServiceTaskKey(bpmnElementId);
                 detail.setJob(job);
+                detail.setRetries(dbService.getServiceTaskRetryState(serviceTaskId).retries());
                 detail.setVariables(variables);
 
                 publisher.publishEvent(new ServiceTaskEnqueued(detail));

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_rest-bpmn-error" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="rest-bpmn-error" name="BPMN error over REST" isExecutable="true">
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>toLookup</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="lookup" name="Lookup">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="lookup" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>toLookup</bpmn:incoming>
+      <bpmn:outgoing>toDone</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="done">
+      <bpmn:incoming>toDone</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:boundaryEvent id="notFound" name="Not found" attachedToRef="lookup">
+      <bpmn:outgoing>toHandled</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="notFoundDefinition" errorRef="Error_NotFound" />
+    </bpmn:boundaryEvent>
+    <bpmn:endEvent id="handled">
+      <bpmn:incoming>toHandled</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="toLookup" sourceRef="start" targetRef="lookup" />
+    <bpmn:sequenceFlow id="toDone" sourceRef="lookup" targetRef="done" />
+    <bpmn:sequenceFlow id="toHandled" sourceRef="notFound" targetRef="handled" />
+  </bpmn:process>
+  <bpmn:error id="Error_NotFound" name="Customer not found" errorCode="CUSTOMER_NOT_FOUND" />
+</bpmn:definitions>

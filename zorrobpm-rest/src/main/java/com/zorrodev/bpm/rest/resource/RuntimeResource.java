@@ -1,12 +1,18 @@
 package com.zorrodev.bpm.rest.resource;
 
 import com.zorrodev.bpm.contract.RuntimeContract;
+import com.zorrodev.bpm.contract.dto.BpmnErrorOutcomeDTO;
 import com.zorrodev.bpm.contract.dto.ClaimTaskDTO;
 import com.zorrodev.bpm.contract.dto.CompleteTaskDTO;
 import com.zorrodev.bpm.contract.dto.FailServiceTaskDTO;
 import com.zorrodev.bpm.contract.dto.IdDTO;
 import com.zorrodev.bpm.contract.dto.ResolveIncidentDTO;
+import com.zorrodev.bpm.contract.dto.ServiceTaskFailureDTO;
 import com.zorrodev.bpm.contract.dto.StartProcessInstanceDTO;
+import com.zorrodev.bpm.contract.dto.ThrowBpmnErrorDTO;
+import com.zorrodev.bpm.engine.dto.BpmnErrorOutcome;
+import com.zorrodev.bpm.engine.dto.FailureOutcome;
+import com.zorrodev.bpm.engine.dto.RetryOverride;
 import com.zorrodev.bpm.engine.service.RuntimeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -16,6 +22,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Duration;
+import java.time.format.DateTimeParseException;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -39,11 +47,42 @@ public class RuntimeResource implements RuntimeContract {
 
     @Transactional
     @Override
-    public IdDTO failServiceTask(@PathVariable UUID id, @RequestBody FailServiceTaskDTO dto) {
+    public ServiceTaskFailureDTO failServiceTask(@PathVariable UUID id, @RequestBody FailServiceTaskDTO dto) {
         if (dto.getMessage() == null || dto.getMessage().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "message is required");
         }
-        return Optional.ofNullable(runtimeService.failServiceTask(id, dto.getMessage())).map(this::toDTO).orElseThrow();
+        if (dto.getRetries() != null && dto.getRetries() < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "retries must not be negative");
+        }
+        RetryOverride override = new RetryOverride(dto.getRetries(), retryTimeout(dto.getRetryTimeout()));
+        FailureOutcome outcome = runtimeService.failServiceTask(id, dto.getMessage(), dto.getErrorCode(), dto.getDetails(), override);
+        return new ServiceTaskFailureDTO(outcome.incidentId(), outcome.retries(), outcome.nextRetryAt());
+    }
+
+    @Transactional
+    @Override
+    public BpmnErrorOutcomeDTO throwBpmnError(@PathVariable UUID id, @RequestBody ThrowBpmnErrorDTO dto) {
+        if (dto.getErrorCode() == null || dto.getErrorCode().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "errorCode is required");
+        }
+        BpmnErrorOutcome outcome = runtimeService.throwBpmnError(id, dto.getErrorCode(), dto.getMessage(), dto.getVariables());
+        return new BpmnErrorOutcomeDTO(outcome.caught(), outcome.boundaryEventId(), outcome.processInstanceId(), outcome.incidentId());
+    }
+
+    private static Duration retryTimeout(String value) {
+        if (value == null) {
+            return null;
+        }
+        Duration timeout;
+        try {
+            timeout = Duration.parse(value);
+        } catch (DateTimeParseException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "retryTimeout must be an ISO-8601 duration, got '" + value + "'");
+        }
+        if (timeout.isNegative()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "retryTimeout must not be negative");
+        }
+        return timeout;
     }
 
     @Transactional

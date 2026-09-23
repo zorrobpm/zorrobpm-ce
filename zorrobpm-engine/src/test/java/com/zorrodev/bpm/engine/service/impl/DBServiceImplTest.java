@@ -31,6 +31,7 @@ import com.zorrodev.bpm.engine.mapper.IncidentMapper;
 import com.zorrodev.bpm.engine.mapper.ProcessInstanceMapper;
 import com.zorrodev.bpm.engine.repository.ActivityRepository;
 import com.zorrodev.bpm.engine.repository.IncidentRepository;
+import com.zorrodev.bpm.exchange.ErrorReport;
 import com.zorrodev.bpm.engine.repository.ProcessDefinitionRepository;
 import com.zorrodev.bpm.engine.repository.ProcessInstanceRepository;
 import com.zorrodev.bpm.engine.repository.ServiceTaskRepository;
@@ -759,13 +760,30 @@ class DBServiceImplTest {
         activity.setId(activityId);
         when(activityRepository.findById(activityId)).thenReturn(Optional.of(activity));
 
-        UUID id = dbService.createIncident(activityId, "boom");
+        UUID id = dbService.createIncident(activityId, new ErrorReport("CARD_DECLINED", "boom", "stack"));
 
         assertThat(id).isNotNull();
         ArgumentCaptor<IncidentEntity> captor = ArgumentCaptor.forClass(IncidentEntity.class);
         verify(incidentRepository).save(captor.capture());
         assertThat(captor.getValue().getActivityId()).isEqualTo(activityId);
         assertThat(captor.getValue().getMessage()).isEqualTo("boom");
+        assertThat(captor.getValue().getErrorCode()).isEqualTo("CARD_DECLINED");
+        assertThat(captor.getValue().getDetails()).isEqualTo("stack");
+    }
+
+    @Test
+    void createIncident_truncatesLongCodeAndDetails() {
+        UUID activityId = UUID.randomUUID();
+        ActivityEntity activity = new ActivityEntity();
+        activity.setId(activityId);
+        when(activityRepository.findById(activityId)).thenReturn(Optional.of(activity));
+
+        dbService.createIncident(activityId, new ErrorReport("C".repeat(300), "boom", "d".repeat(40_000)));
+
+        ArgumentCaptor<IncidentEntity> captor = ArgumentCaptor.forClass(IncidentEntity.class);
+        verify(incidentRepository).save(captor.capture());
+        assertThat(captor.getValue().getErrorCode()).hasSize(ErrorReport.MAX_ERROR_CODE);
+        assertThat(captor.getValue().getDetails()).hasSize(ErrorReport.MAX_DETAILS).endsWith(ErrorReport.TRUNCATED);
     }
 
     @Test

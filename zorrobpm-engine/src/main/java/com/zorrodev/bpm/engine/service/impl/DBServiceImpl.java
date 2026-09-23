@@ -15,6 +15,7 @@ import com.zorrodev.bpm.engine.dto.Activity;
 import com.zorrodev.bpm.contract.dto.Incident;
 import com.zorrodev.bpm.engine.dto.ResolvedAssignment;
 import com.zorrodev.bpm.engine.dto.Timer;
+import com.zorrodev.bpm.engine.dto.ServiceTaskRetryState;
 import com.zorrodev.bpm.engine.dto.TimerSchedule;
 import com.zorrodev.bpm.engine.dto.Token;
 import com.zorrodev.bpm.engine.entity.ActivityEntity;
@@ -25,6 +26,7 @@ import com.zorrodev.bpm.engine.entity.ProcessInstanceEntity;
 import com.zorrodev.bpm.engine.entity.ProcessVariableEntity;
 import com.zorrodev.bpm.engine.entity.ServiceTaskEntity;
 import com.zorrodev.bpm.engine.entity.TimerEntity;
+import com.zorrodev.bpm.engine.entity.TimerKind;
 import com.zorrodev.bpm.engine.entity.TimerStatus;
 import com.zorrodev.bpm.engine.entity.TokenEntity;
 import com.zorrodev.bpm.engine.entity.UserTaskCandidateEntity;
@@ -43,6 +45,7 @@ import com.zorrodev.bpm.engine.repository.UserTaskCandidateRepository;
 import com.zorrodev.bpm.engine.repository.UserTaskRepository;
 import com.zorrodev.bpm.engine.repository.VariableRepository;
 import com.zorrodev.bpm.engine.service.DBService;
+import com.zorrodev.bpm.exchange.ErrorReport;
 import com.zorrodev.bpm.event.UserTaskInstanceCreatedEvent;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.NonNull;
@@ -172,6 +175,11 @@ public class DBServiceImpl implements DBService {
             .map(BpmnElementExtensionModel::getServiceTaskExtension)
             .map(ServiceTaskExtensionModel::getJob)
             .orElse(null));
+        entity.setRetries(Optional.ofNullable(element)
+            .map(BpmnElementModel::getExtensions)
+            .map(BpmnElementExtensionModel::getServiceTaskExtension)
+            .map(ServiceTaskExtensionModel::getRetries)
+            .orElse(0));
 
         serviceTaskRepository.save(entity);
     }
@@ -400,15 +408,18 @@ public class DBServiceImpl implements DBService {
     }
 
     @Override
-    public UUID createIncident(UUID activityId, String message) {
+    public UUID createIncident(UUID activityId, ErrorReport error) {
         ActivityEntity activityEntity = activityRepository.findById(activityId).orElseThrow();
         UUID id = UUID.randomUUID();
+        ErrorReport stored = ErrorReport.truncate(error);
 
         IncidentEntity entity = new IncidentEntity();
         entity.setId(id);
         entity.setActivityId(activityId);
         entity.setCreatedAt(Instant.now());
-        entity.setMessage(message);
+        entity.setMessage(stored.getMessage());
+        entity.setErrorCode(stored.getErrorCode());
+        entity.setDetails(stored.getDetails());
         incidentRepository.save(entity);
 
         return id;
@@ -520,8 +531,14 @@ public class DBServiceImpl implements DBService {
 
     @Override
     public UUID createTimer(UUID processInstanceId, UUID activityId, String bpmnElementId, TimerSchedule schedule) {
+        return createTimer(processInstanceId, activityId, bpmnElementId, TimerKind.BOUNDARY, schedule);
+    }
+
+    @Override
+    public UUID createTimer(UUID processInstanceId, UUID activityId, String bpmnElementId, TimerKind kind, TimerSchedule schedule) {
         TimerEntity entity = new TimerEntity();
         entity.setId(UUID.randomUUID());
+        entity.setKind(kind);
         entity.setProcessInstanceId(processInstanceId);
         entity.setActivityId(activityId);
         entity.setBpmnElementId(bpmnElementId);
@@ -532,6 +549,38 @@ public class DBServiceImpl implements DBService {
         entity.setCreatedAt(clock.instant());
         timerRepository.save(entity);
         return entity.getId();
+    }
+
+    @Override
+    public ServiceTaskRetryState getServiceTaskRetryState(UUID serviceTaskId) {
+        ServiceTaskEntity entity = serviceTaskRepository.findById(serviceTaskId).orElseThrow();
+        return new ServiceTaskRetryState(entity.getRetries(), entity.getNextRetryAt());
+    }
+
+    @Override
+    public void scheduleServiceTaskRetry(UUID serviceTaskId, int retries, ErrorReport error, Instant dueAt) {
+        ServiceTaskEntity entity = serviceTaskRepository.findById(serviceTaskId).orElseThrow();
+        ErrorReport stored = ErrorReport.truncate(error);
+        entity.setRetries(retries);
+        entity.setNextRetryAt(dueAt);
+        entity.setLastErrorCode(stored.getErrorCode());
+        entity.setLastErrorMessage(stored.getMessage());
+        serviceTaskRepository.save(entity);
+        createTimer(entity.getProcessInstanceId(), serviceTaskId, entity.getBpmnElementId(), TimerKind.RETRY, TimerSchedule.once(dueAt));
+    }
+
+    @Override
+    public void clearNextRetryAt(UUID serviceTaskId) {
+        ServiceTaskEntity entity = serviceTaskRepository.findById(serviceTaskId).orElseThrow();
+        entity.setNextRetryAt(null);
+        serviceTaskRepository.save(entity);
+    }
+
+    @Override
+    public void setServiceTaskRetries(UUID serviceTaskId, int retries) {
+        ServiceTaskEntity entity = serviceTaskRepository.findById(serviceTaskId).orElseThrow();
+        entity.setRetries(retries);
+        serviceTaskRepository.save(entity);
     }
 
     @Override
@@ -573,6 +622,7 @@ public class DBServiceImpl implements DBService {
         Timer timer = new Timer();
         timer.setId(entity.getId());
         timer.setProcessInstanceId(entity.getProcessInstanceId());
+        timer.setKind(entity.getKind());
         timer.setActivityId(entity.getActivityId());
         timer.setBpmnElementId(entity.getBpmnElementId());
         timer.setDueAt(entity.getDueAt());

@@ -13,5 +13,5 @@ public class TaskDefinitionModel {
     @XmlAttribute
     private String type;
     @XmlAttribute
-    private Integer retries;
+    private String retries;
 }

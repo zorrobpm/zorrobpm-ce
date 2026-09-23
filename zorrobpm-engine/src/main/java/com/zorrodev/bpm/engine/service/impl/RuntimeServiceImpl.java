@@ -4,11 +4,15 @@ import com.zorrodev.bpm.contract.dto.CompleteTaskDTO;
 import com.zorrodev.bpm.contract.dto.StartProcessInstanceDTO;
 import com.zorrodev.bpm.contract.model.ProcessDefinition;
 import com.zorrodev.bpm.contract.model.ProcessVariable;
+import com.zorrodev.bpm.engine.dto.BpmnErrorOutcome;
+import com.zorrodev.bpm.engine.dto.FailureOutcome;
 import com.zorrodev.bpm.engine.dto.IdDTO;
+import com.zorrodev.bpm.engine.dto.RetryOverride;
 import com.zorrodev.bpm.engine.service.ActivityService;
 import com.zorrodev.bpm.engine.service.BpmnService;
 import com.zorrodev.bpm.engine.service.DBService;
 import com.zorrodev.bpm.engine.service.RuntimeService;
+import com.zorrodev.bpm.exchange.ErrorReport;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -58,10 +62,13 @@ public class RuntimeServiceImpl implements RuntimeService {
     }
 
     @Override
-    public IdDTO failServiceTask(UUID id, String message) {
-        IdDTO result = new IdDTO();
-        result.setId(activityService.failServiceTask(id, message));
-        return result;
+    public FailureOutcome failServiceTask(UUID id, String message, String errorCode, String details, RetryOverride override) {
+        return activityService.failServiceTask(id, new ErrorReport(errorCode, message, details), override);
+    }
+
+    @Override
+    public BpmnErrorOutcome throwBpmnError(UUID id, String errorCode, String message, List<ProcessVariable> variables) {
+        return activityService.throwBpmnError(id, errorCode, message, variables);
     }
 
     @Override

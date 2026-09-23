@@ -10,7 +10,13 @@ import java.util.UUID;
 @Setter
 public class ServiceTaskCompleteData {
     private UUID serviceTaskId;
-    private String status;
+    private ServiceTaskResultStatus status;
     private String message;
+    private String errorCode;
+    private String details;
+    /** Retries still available at this failure; overrides the engine's counter. {@code null} — let the engine decide. */
+    private Integer retries;
+    /** ISO-8601 duration until this retry; overrides the interval from BPMN. {@code null} — use BPMN. */
+    private String retryTimeout;
     private List<ProcessVariable> variables;
 }

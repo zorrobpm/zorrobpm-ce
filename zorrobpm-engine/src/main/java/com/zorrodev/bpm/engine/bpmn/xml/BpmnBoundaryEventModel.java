@@ -32,8 +32,11 @@ public class BpmnBoundaryEventModel {
     @XmlElement(name = "timerEventDefinition", namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL")
     private BpmnTimerEventDefinitionModel timerEventDefinition;
 
+    @XmlElement(name = "errorEventDefinition", namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL")
+    private BpmnErrorEventDefinitionModel errorEventDefinition;
+
     /**
-     * Every other child element: other event definitions (message, error, signal, ...) are only
+     * Every other child element: other event definitions (message, signal, ...) are only
      * detected here so that deployment can reject them.
      */
     @XmlAnyElement

@@ -1,0 +1,16 @@
+databaseChangeLog:
+  - logicalFilePath: 20260923-029
+  - changeSet:
+      id: 20260923-029
+      author: zorrodev
+      comment: Error code and details (stack trace) of an incident; empty for incidents recorded before them.
+      changes:
+        - addColumn:
+            tableName: incidents
+            columns:
+              - column:
+                  name: error_code
+                  type: varchar(255)
+              - column:
+                  name: details
+                  type: text

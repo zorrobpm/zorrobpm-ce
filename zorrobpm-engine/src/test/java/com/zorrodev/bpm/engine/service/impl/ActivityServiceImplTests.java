@@ -8,18 +8,27 @@ import com.zorrodev.bpm.contract.exception.TaskNotActiveException;
 import com.zorrodev.bpm.contract.model.ProcessDefinition;
 import com.zorrodev.bpm.contract.model.ProcessVariable;
 import com.zorrodev.bpm.contract.model.ProcessInstance;
+import com.zorrodev.bpm.engine.bpmn.model.BpmnElementExtensionModel;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnElementModel;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnElementType;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnFlowModel;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnProcessDefinitionModel;
+import com.zorrodev.bpm.engine.bpmn.model.ServiceTaskExtensionModel;
 import com.zorrodev.bpm.engine.dto.Activity;
+import com.zorrodev.bpm.engine.dto.FailureOutcome;
+import com.zorrodev.bpm.engine.dto.RetryOverride;
+import com.zorrodev.bpm.engine.dto.ServiceTaskRetryState;
+import com.zorrodev.bpm.engine.dto.Timer;
 import com.zorrodev.bpm.engine.dto.Token;
 import com.zorrodev.bpm.engine.entity.ActivityStatus;
+import com.zorrodev.bpm.engine.entity.TimerKind;
+import com.zorrodev.bpm.engine.entity.TimerStatus;
 import com.zorrodev.bpm.engine.service.BpmnParseService;
 import com.zorrodev.bpm.engine.service.BpmnService;
 import com.zorrodev.bpm.engine.service.DBService;
 import com.zorrodev.bpm.engine.service.ScriptService;
 import com.zorrodev.bpm.engine.service.ServiceTaskEnqueueService;
+import com.zorrodev.bpm.exchange.ErrorReport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,6 +43,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -42,6 +53,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.lenient;
@@ -66,6 +78,9 @@ public class ActivityServiceImplTests {
 
     @Mock
     private ServiceTaskEnqueueService serviceTaskEnqueueService;
+
+    @Mock
+    private Clock clock;
 
     @InjectMocks
     private ActivityServiceImpl activityService;
@@ -447,12 +462,15 @@ public class ActivityServiceImplTests {
         when(dbService.hasServiceTask(serviceTaskId)).thenReturn(true);
         when(dbService.getActivityForUpdate(serviceTaskId)).thenReturn(serviceTaskActivity(serviceTaskId, ActivityStatus.CREATED, null));
         when(dbService.findOpenIncidentId(serviceTaskId)).thenReturn(Optional.empty());
-        when(dbService.createIncident(serviceTaskId, "boom")).thenReturn(incidentId);
+        ErrorReport error = new ErrorReport("CARD_DECLINED", "boom", "stack");
+        when(dbService.getServiceTaskRetryState(serviceTaskId)).thenReturn(new ServiceTaskRetryState(0, null));
+        when(dbService.createIncident(serviceTaskId, error)).thenReturn(incidentId);
 
-        UUID result = activityService.failServiceTask(serviceTaskId, "boom");
+        FailureOutcome result = activityService.failServiceTask(serviceTaskId, error, RetryOverride.NONE);
 
-        assertThat(result).isEqualTo(incidentId);
-        verify(dbService).createIncident(serviceTaskId, "boom");
+        assertThat(result).isEqualTo(new FailureOutcome(incidentId, 0, null));
+        verify(dbService).createIncident(serviceTaskId, error);
+        verify(dbService, never()).scheduleServiceTaskRetry(any(), anyInt(), any(), any());
         verify(dbService).setActivityStatus(serviceTaskId, ActivityStatus.ERROR);
         verify(dbService, never()).completeServiceTask(any());
         verify(dbService, never()).completeActivity(any());
@@ -466,9 +484,9 @@ public class ActivityServiceImplTests {
         when(dbService.getActivityForUpdate(serviceTaskId)).thenReturn(serviceTaskActivity(serviceTaskId, ActivityStatus.ERROR, null));
         when(dbService.findOpenIncidentId(serviceTaskId)).thenReturn(Optional.of(openIncidentId));
 
-        UUID result = activityService.failServiceTask(serviceTaskId, "boom again");
+        FailureOutcome result = activityService.failServiceTask(serviceTaskId, new ErrorReport(null, "boom again", null), RetryOverride.NONE);
 
-        assertThat(result).isEqualTo(openIncidentId);
+        assertThat(result.incidentId()).isEqualTo(openIncidentId);
         verify(dbService, never()).createIncident(any(), any());
         verify(dbService, never()).setActivityStatus(any(), any());
     }
@@ -479,7 +497,7 @@ public class ActivityServiceImplTests {
         when(dbService.hasServiceTask(serviceTaskId)).thenReturn(true);
         when(dbService.getActivityForUpdate(serviceTaskId)).thenReturn(serviceTaskActivity(serviceTaskId, ActivityStatus.COMPLETED, Instant.now()));
 
-        assertThatThrownBy(() -> activityService.failServiceTask(serviceTaskId, "boom"))
+        assertThatThrownBy(() -> activityService.failServiceTask(serviceTaskId, new ErrorReport(null, "boom", null), RetryOverride.NONE))
             .isInstanceOf(TaskNotActiveException.class);
 
         verify(dbService, never()).createIncident(any(), any());
@@ -491,11 +509,129 @@ public class ActivityServiceImplTests {
         UUID unknownOrUserTaskId = UUID.randomUUID();
         when(dbService.hasServiceTask(unknownOrUserTaskId)).thenReturn(false);
 
-        assertThatThrownBy(() -> activityService.failServiceTask(unknownOrUserTaskId, "boom"))
+        assertThatThrownBy(() -> activityService.failServiceTask(unknownOrUserTaskId, new ErrorReport(null, "boom", null), RetryOverride.NONE))
             .isInstanceOf(ServiceTaskNotFoundException.class);
 
         verify(dbService, never()).getActivityForUpdate(any());
         verify(dbService, never()).createIncident(any(), any());
+    }
+
+    @Test
+    public void failServiceTask_withRetriesLeftSchedulesRetryInsteadOfIncident() {
+        UUID serviceTaskId = UUID.randomUUID();
+        Instant now = Instant.parse("2026-09-23T10:00:00Z");
+        when(clock.instant()).thenReturn(now);
+        when(dbService.getActivityForUpdate(serviceTaskId)).thenReturn(serviceTaskActivity(serviceTaskId, ActivityStatus.CREATED, null));
+        when(dbService.findOpenIncidentId(serviceTaskId)).thenReturn(Optional.empty());
+        when(dbService.getServiceTaskRetryState(serviceTaskId)).thenReturn(new ServiceTaskRetryState(2, null));
+        ErrorReport error = new ErrorReport("java.net.SocketTimeoutException", "timeout", null);
+
+        FailureOutcome result = activityService.failServiceTask(serviceTaskId, error, new RetryOverride(null, Duration.ofMinutes(1)));
+
+        assertThat(result).isEqualTo(new FailureOutcome(null, 1, now.plusSeconds(60)));
+        verify(dbService).scheduleServiceTaskRetry(serviceTaskId, 1, error, now.plusSeconds(60));
+        verify(dbService, never()).createIncident(any(), any());
+        verify(dbService, never()).setActivityStatus(any(), any());
+    }
+
+    @Test
+    public void failServiceTask_workerWithZeroRetriesGetsIncidentAtOnce() {
+        UUID serviceTaskId = UUID.randomUUID();
+        UUID incidentId = UUID.randomUUID();
+        when(dbService.getActivityForUpdate(serviceTaskId)).thenReturn(serviceTaskActivity(serviceTaskId, ActivityStatus.CREATED, null));
+        when(dbService.findOpenIncidentId(serviceTaskId)).thenReturn(Optional.empty());
+        when(dbService.getServiceTaskRetryState(serviceTaskId)).thenReturn(new ServiceTaskRetryState(3, null));
+        ErrorReport error = new ErrorReport("CARD_DECLINED", "card declined", null);
+        when(dbService.createIncident(serviceTaskId, error)).thenReturn(incidentId);
+
+        FailureOutcome result = activityService.failServiceTask(serviceTaskId, error, RetryOverride.NO_RETRY);
+
+        assertThat(result).isEqualTo(new FailureOutcome(incidentId, 0, null));
+        verify(dbService).setServiceTaskRetries(serviceTaskId, 0);
+        verify(dbService).setActivityStatus(serviceTaskId, ActivityStatus.ERROR);
+        verify(dbService, never()).scheduleServiceTaskRetry(any(), anyInt(), any(), any());
+    }
+
+    @Test
+    public void failServiceTask_ignoresFailureWhileRetryIsPending() {
+        UUID serviceTaskId = UUID.randomUUID();
+        Instant nextRetryAt = Instant.parse("2026-09-23T10:01:00Z");
+        when(dbService.getActivityForUpdate(serviceTaskId)).thenReturn(serviceTaskActivity(serviceTaskId, ActivityStatus.CREATED, null));
+        when(dbService.findOpenIncidentId(serviceTaskId)).thenReturn(Optional.empty());
+        when(dbService.getServiceTaskRetryState(serviceTaskId)).thenReturn(new ServiceTaskRetryState(1, nextRetryAt));
+
+        FailureOutcome result = activityService.failServiceTask(serviceTaskId, new ErrorReport(null, "again", null), RetryOverride.NONE);
+
+        assertThat(result).isEqualTo(new FailureOutcome(null, 1, nextRetryAt));
+        verify(dbService, never()).scheduleServiceTaskRetry(any(), anyInt(), any(), any());
+        verify(dbService, never()).createIncident(any(), any());
+        verify(dbService, never()).setServiceTaskRetries(any(), anyInt());
+    }
+
+    @Test
+    public void fireTimer_retryRequeuesJobWithoutBoundaryPath() {
+        UUID serviceTaskId = UUID.randomUUID();
+        UUID timerId = UUID.randomUUID();
+        Instant now = Instant.parse("2026-09-23T10:01:00Z");
+        when(clock.instant()).thenReturn(now);
+        when(dbService.findActivityForUpdateSkipLocked(serviceTaskId)).thenReturn(Optional.of(serviceTaskActivity(serviceTaskId, ActivityStatus.CREATED, null)));
+        when(dbService.getTimerForUpdate(timerId)).thenReturn(Optional.of(retryTimer(timerId, serviceTaskId, now)));
+
+        boolean fired = activityService.fireTimer(timerId, serviceTaskId);
+
+        assertThat(fired).isTrue();
+        verify(dbService).setTimerStatus(timerId, TimerStatus.FIRED);
+        verify(dbService).clearNextRetryAt(serviceTaskId);
+        verify(serviceTaskEnqueueService).enqueueAfterCommit(serviceTaskId);
+        verify(dbService, never()).createActivity(any(), any(), any(BpmnElementModel.class));
+        verify(dbService, never()).terminateActivity(any());
+    }
+
+    @Test
+    public void fireTimer_retryOfClosedServiceTaskIsCanceled() {
+        UUID serviceTaskId = UUID.randomUUID();
+        UUID timerId = UUID.randomUUID();
+        Instant now = Instant.parse("2026-09-23T10:01:00Z");
+        when(clock.instant()).thenReturn(now);
+        when(dbService.findActivityForUpdateSkipLocked(serviceTaskId)).thenReturn(Optional.of(serviceTaskActivity(serviceTaskId, ActivityStatus.TERMINATED, now)));
+        when(dbService.getTimerForUpdate(timerId)).thenReturn(Optional.of(retryTimer(timerId, serviceTaskId, now)));
+
+        boolean fired = activityService.fireTimer(timerId, serviceTaskId);
+
+        assertThat(fired).isFalse();
+        verify(dbService).setTimerStatus(timerId, TimerStatus.CANCELED);
+        verify(serviceTaskEnqueueService, never()).enqueueAfterCommit(any());
+    }
+
+    private static Timer retryTimer(UUID timerId, UUID serviceTaskId, Instant dueAt) {
+        Timer timer = new Timer();
+        timer.setId(timerId);
+        timer.setKind(TimerKind.RETRY);
+        timer.setActivityId(serviceTaskId);
+        timer.setBpmnElementId("serviceTask1");
+        timer.setDueAt(dueAt);
+        timer.setStatus(TimerStatus.SCHEDULED);
+        return timer;
+    }
+
+    /** The BPMN model of the activity's service task with the given retries. */
+    private void stubServiceTaskModel(Activity activity, int retries) {
+        UUID processDefinitionId = UUID.randomUUID();
+        ProcessInstance pi = new ProcessInstance();
+        pi.setId(activity.getProcessInstanceId());
+        pi.setProcessDefinitionId(processDefinitionId);
+        ServiceTaskExtensionModel extension = new ServiceTaskExtensionModel();
+        extension.setJob("charge");
+        extension.setRetries(retries);
+        BpmnElementModel element = new BpmnElementModel();
+        element.setId(activity.getBpmnElementId());
+        element.setType(BpmnElementType.SERVICE_TASK);
+        element.setExtensions(new BpmnElementExtensionModel());
+        element.getExtensions().setServiceTaskExtension(extension);
+        BpmnProcessDefinitionModel bpmn = new BpmnProcessDefinitionModel();
+        bpmn.addElement(element);
+        when(dbService.getProcessInstance(activity.getProcessInstanceId())).thenReturn(pi);
+        when(bpmnService.getProcessDefinitionModelById(processDefinitionId)).thenReturn(bpmn);
     }
 
     private static Activity serviceTaskActivity(UUID id, ActivityStatus status, Instant completedAt) {
@@ -540,7 +676,11 @@ public class ActivityServiceImplTests {
 
         verify(dbService).cancelOpenChildUserTasks(gatewayActivityId);
         verify(dbService).setActivityStatus(gatewayActivityId, ActivityStatus.ERROR);
-        verify(dbService).createIncident(gatewayActivityId, "java.lang.IllegalStateException: a is undefined");
+        ArgumentCaptor<ErrorReport> error = ArgumentCaptor.forClass(ErrorReport.class);
+        verify(dbService).createIncident(eq(gatewayActivityId), error.capture());
+        assertThat(error.getValue().getErrorCode()).isEqualTo("java.lang.IllegalStateException");
+        assertThat(error.getValue().getMessage()).isEqualTo("a is undefined");
+        assertThat(error.getValue().getDetails()).startsWith("java.lang.IllegalStateException: a is undefined").contains("\tat ");
         verify(dbService, never()).createActivity(processInstanceId, token, bpmn.getElement("userTask1"));
         verify(dbService, never()).createActivity(processInstanceId, token, bpmn.getElement("userTask2"));
     }
@@ -575,12 +715,14 @@ public class ActivityServiceImplTests {
         List<ProcessVariable> variables = List.of(new ProcessVariable());
         when(dbService.getIncident(incidentId)).thenReturn(incident(incidentId, serviceTaskId, null));
         when(dbService.getActivityForUpdate(serviceTaskId)).thenReturn(activity);
+        stubServiceTaskModel(activity, 2);
 
         activityService.resolveIncident(incidentId, variables);
 
         verify(dbService).setVariables(activity.getProcessInstanceId(), variables);
         verify(dbService).resolveIncident(incidentId);
         verify(dbService).setActivityStatus(serviceTaskId, ActivityStatus.CREATED);
+        verify(dbService).setServiceTaskRetries(serviceTaskId, 2);
         verify(serviceTaskEnqueueService).enqueueAfterCommit(serviceTaskId);
         verify(dbService, never()).terminateActivity(any());
     }

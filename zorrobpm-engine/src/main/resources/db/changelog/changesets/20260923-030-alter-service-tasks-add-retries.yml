@@ -1,0 +1,27 @@
+databaseChangeLog:
+  - logicalFilePath: 20260923-030
+  - changeSet:
+      id: 20260923-030
+      author: zorrodev
+      comment: >
+        Retry state of a service task: retries still available, the due time of a pending retry and
+        the code and text of the error the last retry was scheduled for.
+      changes:
+        - addColumn:
+            tableName: service_tasks
+            columns:
+              - column:
+                  name: retries
+                  type: int
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: next_retry_at
+                  type: datetime with timezone
+              - column:
+                  name: last_error_code
+                  type: varchar(255)
+              - column:
+                  name: last_error_message
+                  type: text

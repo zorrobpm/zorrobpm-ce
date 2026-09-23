@@ -14,5 +14,7 @@ public class JobDetailModel {
     private UUID processDefinitionId;
     private String serviceTaskKey;
     private String job;
+    /** Retries still available for this service task if this attempt fails. */
+    private Integer retries;
     private Map<String, ProcessVariable> variables;
 }
