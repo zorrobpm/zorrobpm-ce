@@ -8,6 +8,7 @@ import com.zorrodev.bpm.handler.JobFailedException;
 import com.zorrodev.bpm.handler.JobHandler;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Function;
@@ -73,6 +74,27 @@ class HandlerAutoConfigurationTest {
         assertThat(data.getErrorCode()).isEqualTo("CARD_DECLINED");
         assertThat(data.getMessage()).isEqualTo("card declined");
         assertThat(data.getDetails()).contains("Caused by: java.lang.IllegalStateException: gateway said 402");
+    }
+
+    @Test
+    void handle_jobFailedExceptionCarriesRetryOverride() {
+        ServiceTaskCompleteData data = HandlerAutoConfiguration.handle(handler(m -> {
+            throw new JobFailedException("GATEWAY_DOWN", "gateway down").withRetries(0).withRetryTimeout(Duration.ofMinutes(10));
+        }), model());
+
+        assertThat(data.getErrorCode()).isEqualTo("GATEWAY_DOWN");
+        assertThat(data.getRetries()).isZero();
+        assertThat(data.getRetryTimeout()).isEqualTo("PT10M");
+    }
+
+    @Test
+    void handle_plainExceptionLeavesRetriesToEngine() {
+        ServiceTaskCompleteData data = HandlerAutoConfiguration.handle(handler(m -> {
+            throw new IllegalStateException("timeout");
+        }), model());
+
+        assertThat(data.getRetries()).isNull();
+        assertThat(data.getRetryTimeout()).isNull();
     }
 
     private static JobDetailModel model() {

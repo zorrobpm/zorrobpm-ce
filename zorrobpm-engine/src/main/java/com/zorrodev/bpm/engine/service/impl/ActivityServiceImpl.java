@@ -16,14 +16,19 @@ import com.zorrodev.bpm.engine.bpmn.model.BpmnFlowModel;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnProcessDefinitionModel;
 import com.zorrodev.bpm.engine.bpmn.model.ExclusiveGatewayExtensionModel;
 import com.zorrodev.bpm.engine.bpmn.model.MultiInstanceExtensionModel;
+import com.zorrodev.bpm.engine.bpmn.model.ServiceTaskExtensionModel;
 import com.zorrodev.bpm.engine.bpmn.xml.extension.UserTaskExtensionModel;
 import com.zorrodev.bpm.engine.dto.Activity;
+import com.zorrodev.bpm.engine.dto.FailureOutcome;
 import com.zorrodev.bpm.contract.dto.Incident;
 import com.zorrodev.bpm.engine.dto.ResolvedAssignment;
+import com.zorrodev.bpm.engine.dto.RetryOverride;
+import com.zorrodev.bpm.engine.dto.ServiceTaskRetryState;
 import com.zorrodev.bpm.engine.dto.Timer;
 import com.zorrodev.bpm.engine.dto.TimerSchedule;
 import com.zorrodev.bpm.engine.dto.Token;
 import com.zorrodev.bpm.engine.entity.ActivityStatus;
+import com.zorrodev.bpm.engine.entity.TimerKind;
 import com.zorrodev.bpm.engine.entity.TimerStatus;
 import com.zorrodev.bpm.engine.service.ActivityService;
 import com.zorrodev.bpm.engine.service.BpmnService;
@@ -42,6 +47,7 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -304,7 +310,7 @@ public class ActivityServiceImpl implements ActivityService {
     }
 
     @Override
-    public UUID failServiceTask(UUID serviceTaskId, ErrorReport error) {
+    public FailureOutcome failServiceTask(UUID serviceTaskId, ErrorReport error, RetryOverride override) {
         if (!dbService.hasServiceTask(serviceTaskId)) {
             throw new ServiceTaskNotFoundException("Service task " + serviceTaskId + " not found");
         }
@@ -317,14 +323,41 @@ public class ActivityServiceImpl implements ActivityService {
         Optional<UUID> openIncidentId = dbService.findOpenIncidentId(serviceTaskId);
         if (openIncidentId.isPresent()) {
             log.info("{}/{}: Ignoring repeated failure of {} {}/{}: incident {} is open", activity.getProcessInstanceId(), activity.getToken(), activity.getType(), serviceTaskId, activity.getBpmnElementId(), openIncidentId.get());
-            return openIncidentId.get();
+            return new FailureOutcome(openIncidentId.get(), 0, null);
         }
 
+        ServiceTaskRetryState state = dbService.getServiceTaskRetryState(serviceTaskId);
+        if (state.nextRetryAt() != null) {
+            // The job is not with a worker while a retry is pending: this is a redelivery.
+            log.info("{}/{}: Ignoring repeated failure of {} {}/{}: retry is scheduled at {}", activity.getProcessInstanceId(), activity.getToken(), activity.getType(), serviceTaskId, activity.getBpmnElementId(), state.nextRetryAt());
+            return new FailureOutcome(null, state.retries(), state.nextRetryAt());
+        }
+
+        int available = override.retries() != null ? Math.max(0, override.retries()) : state.retries();
+        if (available > 0) {
+            Duration timeout = override.retryTimeout() != null ? override.retryTimeout() : serviceTaskExtension(activity).getRetryTimeout();
+            Instant dueAt = clock.instant().plus(timeout);
+            dbService.scheduleServiceTaskRetry(serviceTaskId, available - 1, error, dueAt);
+            log.warn("{}/{}: Retry of {} {}/{} at {}, {} left after it: {} ({})", activity.getProcessInstanceId(), activity.getToken(), activity.getType(), serviceTaskId, activity.getBpmnElementId(), dueAt, available - 1, error.getMessage(), error.getErrorCode());
+            return new FailureOutcome(null, available - 1, dueAt);
+        }
+
+        dbService.setServiceTaskRetries(serviceTaskId, 0);
         UUID incidentId = dbService.createIncident(serviceTaskId, error);
         dbService.setActivityStatus(serviceTaskId, ActivityStatus.ERROR);
 
         log.warn("{}/{}: Incident {} on {}: {}/{}: {} ({})", activity.getProcessInstanceId(), activity.getToken(), incidentId, activity.getType(), serviceTaskId, activity.getBpmnElementId(), error.getMessage(), error.getErrorCode());
-        return incidentId;
+        return new FailureOutcome(incidentId, 0, null);
+    }
+
+    /** Retry settings of the service task's BPMN element; none for a task without a task definition. */
+    private ServiceTaskExtensionModel serviceTaskExtension(Activity activity) {
+        ProcessInstance processInstance = dbService.getProcessInstance(activity.getProcessInstanceId());
+        BpmnProcessDefinitionModel bpmn = bpmnService.getProcessDefinitionModelById(processInstance.getProcessDefinitionId());
+        return Optional.ofNullable(bpmn.getElement(activity.getBpmnElementId()))
+            .map(BpmnElementModel::getExtensions)
+            .map(BpmnElementExtensionModel::getServiceTaskExtension)
+            .orElseGet(ServiceTaskExtensionModel::new);
     }
 
     private void enterUserTask(UUID processInstanceId, UUID token, BpmnProcessDefinitionModel bpmn, BpmnElementModel bpmnElement) {
@@ -635,6 +668,7 @@ public class ActivityServiceImpl implements ActivityService {
         // retry; it is executed again like any other element.
         if (activity.getType() == BpmnElementType.SERVICE_TASK && dbService.hasServiceTask(activity.getId())) {
             dbService.setActivityStatus(activity.getId(), ActivityStatus.CREATED);
+            dbService.setServiceTaskRetries(activity.getId(), serviceTaskExtension(activity).getRetries());
             serviceTaskEnqueueService.enqueueAfterCommit(activity.getId());
             return;
         }
@@ -776,6 +810,15 @@ public class ActivityServiceImpl implements ActivityService {
             dbService.setTimerStatus(timerId, TimerStatus.CANCELED);
             log.info("{}: Timer {} of {} canceled, host {} is already {}", processInstanceId, timerId, timer.getBpmnElementId(), hostActivityId, host.getStatus());
             return false;
+        }
+
+        if (timer.getKind() == TimerKind.RETRY) {
+            // The same service task gets its job again; boundary timers keep running from the first entry.
+            dbService.setTimerStatus(timerId, TimerStatus.FIRED);
+            dbService.clearNextRetryAt(hostActivityId);
+            serviceTaskEnqueueService.enqueueAfterCommit(hostActivityId);
+            log.info("{}/{}: Retry {} fired: re-queuing job of {} {}/{}", processInstanceId, host.getToken(), timerId, host.getType(), hostActivityId, host.getBpmnElementId());
+            return true;
         }
 
         ProcessInstance processInstance = dbService.getProcessInstance(processInstanceId);

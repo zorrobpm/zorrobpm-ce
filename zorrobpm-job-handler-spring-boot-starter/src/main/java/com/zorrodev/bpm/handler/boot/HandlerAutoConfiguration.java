@@ -65,7 +65,8 @@ public class HandlerAutoConfiguration {
 
     /**
      * Runs the handler and builds the message for the engine: SUCCESS with the handler's
-     * variables, or FAILURE with the error code, text and stack trace when the handler throws.
+     * variables, or FAILURE with the error code, text and stack trace when the handler throws, plus
+     * the retry override of a {@link JobFailedException}.
      */
     static ServiceTaskCompleteData handle(JobHandler handler, JobDetailModel model) {
         ServiceTaskCompleteData completeData = new ServiceTaskCompleteData();
@@ -82,11 +83,16 @@ public class HandlerAutoConfiguration {
             completeData.setVariables(result);
         } catch (Exception e) {
             log.error("Job {} failed for service task {}", handler.getJob(), model.getServiceTaskId(), e);
-            ErrorReport report = ErrorReport.of(e, e instanceof JobFailedException failed ? failed.getErrorCode() : null);
+            JobFailedException failed = e instanceof JobFailedException jobFailed ? jobFailed : null;
+            ErrorReport report = ErrorReport.of(e, failed != null ? failed.getErrorCode() : null);
             completeData.setStatus(ServiceTaskResultStatus.FAILURE);
             completeData.setMessage(report.getMessage());
             completeData.setErrorCode(report.getErrorCode());
             completeData.setDetails(report.getDetails());
+            if (failed != null) {
+                completeData.setRetries(failed.getRetries());
+                completeData.setRetryTimeout(failed.getRetryTimeout() != null ? failed.getRetryTimeout().toString() : null);
+            }
             completeData.setVariables(List.of());
         }
         return completeData;

@@ -3,7 +3,9 @@ package com.zorrodev.bpm.engine.service.impl;
 import com.zorrodev.bpm.contract.dto.StartProcessInstanceDTO;
 import com.zorrodev.bpm.contract.model.ProcessDefinition;
 import com.zorrodev.bpm.contract.model.ProcessVariable;
+import com.zorrodev.bpm.engine.dto.FailureOutcome;
 import com.zorrodev.bpm.engine.dto.IdDTO;
+import com.zorrodev.bpm.engine.dto.RetryOverride;
 import com.zorrodev.bpm.engine.service.ActivityService;
 import com.zorrodev.bpm.engine.service.BpmnService;
 import com.zorrodev.bpm.engine.service.DBService;
@@ -117,15 +119,16 @@ class RuntimeServiceImplTest {
     }
 
     @Test
-    void failServiceTask_delegatesAndReturnsIncidentId() {
+    void failServiceTask_delegatesAndReturnsOutcome() {
         UUID id = UUID.randomUUID();
-        UUID incidentId = UUID.randomUUID();
+        FailureOutcome outcome = new FailureOutcome(UUID.randomUUID(), 0, null);
+        RetryOverride override = new RetryOverride(0, null);
         ArgumentCaptor<ErrorReport> error = ArgumentCaptor.forClass(ErrorReport.class);
-        when(activityService.failServiceTask(eq(id), error.capture())).thenReturn(incidentId);
+        when(activityService.failServiceTask(eq(id), error.capture(), eq(override))).thenReturn(outcome);
 
-        IdDTO result = runtimeService.failServiceTask(id, "boom", "CARD_DECLINED", "stack");
+        FailureOutcome result = runtimeService.failServiceTask(id, "boom", "CARD_DECLINED", "stack", override);
 
-        assertThat(result.getId()).isEqualTo(incidentId);
+        assertThat(result).isEqualTo(outcome);
         assertThat(error.getValue().getMessage()).isEqualTo("boom");
         assertThat(error.getValue().getErrorCode()).isEqualTo("CARD_DECLINED");
         assertThat(error.getValue().getDetails()).isEqualTo("stack");

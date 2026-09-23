@@ -3,7 +3,9 @@ package com.zorrodev.bpm.engine.service;
 import com.zorrodev.bpm.contract.dto.CompleteTaskDTO;
 import com.zorrodev.bpm.contract.dto.StartProcessInstanceDTO;
 import com.zorrodev.bpm.contract.model.ProcessVariable;
+import com.zorrodev.bpm.engine.dto.FailureOutcome;
 import com.zorrodev.bpm.engine.dto.IdDTO;
+import com.zorrodev.bpm.engine.dto.RetryOverride;
 
 import java.util.List;
 import java.util.UUID;
@@ -17,9 +19,9 @@ public interface RuntimeService {
     IdDTO completeServiceTask(UUID id, List<ProcessVariable> variables);
 
     /**
-     * Reports a failure of the service task and returns the id of its open incident.
+     * Reports a failure of the service task: returns the scheduled retry or the id of its open incident.
      */
-    IdDTO failServiceTask(UUID id, String message, String errorCode, String details);
+    FailureOutcome failServiceTask(UUID id, String message, String errorCode, String details, RetryOverride override);
 
     IdDTO completeUserTask(UUID id, List<ProcessVariable> variables);
 

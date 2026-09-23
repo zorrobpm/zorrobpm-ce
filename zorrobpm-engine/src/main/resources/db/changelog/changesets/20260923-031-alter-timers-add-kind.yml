@@ -1,0 +1,18 @@
+databaseChangeLog:
+  - logicalFilePath: 20260923-031
+  - changeSet:
+      id: 20260923-031
+      author: zorrodev
+      comment: >
+        What a timer does when it fires: BOUNDARY — a boundary timer event, RETRY — re-queues the job of
+        a failed service task. Existing rows are boundary timers.
+      changes:
+        - addColumn:
+            tableName: timers
+            columns:
+              - column:
+                  name: kind
+                  type: varchar(16)
+                  defaultValue: BOUNDARY
+                  constraints:
+                    nullable: false

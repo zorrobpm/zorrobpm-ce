@@ -13,6 +13,8 @@ import com.zorrodev.bpm.engine.dto.Timer;
 import com.zorrodev.bpm.engine.dto.TimerSchedule;
 import com.zorrodev.bpm.engine.dto.Token;
 import com.zorrodev.bpm.engine.entity.ActivityStatus;
+import com.zorrodev.bpm.engine.dto.ServiceTaskRetryState;
+import com.zorrodev.bpm.engine.entity.TimerKind;
 import com.zorrodev.bpm.engine.entity.TimerStatus;
 import org.jspecify.annotations.NonNull;
 
@@ -124,6 +126,20 @@ public interface DBService {
     void cancelServiceTask(UUID serviceTaskId);
 
     UUID createTimer(UUID processInstanceId, UUID activityId, String bpmnElementId, TimerSchedule schedule);
+
+    UUID createTimer(UUID processInstanceId, UUID activityId, String bpmnElementId, TimerKind kind, TimerSchedule schedule);
+
+    ServiceTaskRetryState getServiceTaskRetryState(UUID serviceTaskId);
+
+    /**
+     * Records the failure a retry is scheduled for and arms a {@link TimerKind#RETRY} timer on the
+     * service task: {@code retries} is the counter after this retry, {@code dueAt} its due time.
+     */
+    void scheduleServiceTaskRetry(UUID serviceTaskId, int retries, ErrorReport error, Instant dueAt);
+
+    void clearNextRetryAt(UUID serviceTaskId);
+
+    void setServiceTaskRetries(UUID serviceTaskId, int retries);
 
     /**
      * Cancels the timers of the host activity that have not fired yet.

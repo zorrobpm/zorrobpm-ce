@@ -12,4 +12,6 @@ public class ServiceTaskFailed {
     private String message;
     private String errorCode;
     private String details;
+    private Integer retries;
+    private String retryTimeout;
 }

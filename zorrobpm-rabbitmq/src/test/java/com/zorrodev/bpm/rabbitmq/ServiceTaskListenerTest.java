@@ -90,6 +90,61 @@ class ServiceTaskListenerTest {
         assertThat(event.getServiceTaskId()).isEqualTo(data.getServiceTaskId());
         assertThat(event.getErrorCode()).isEqualTo("UNSUPPORTED_RESULT_STATUS");
         assertThat(event.getMessage()).isNotBlank();
+        assertThat(event.getRetries()).isZero();
+    }
+
+    @Test
+    void failurePassesRetryOverride() {
+        ServiceTaskCompleteData data = data(ServiceTaskResultStatus.FAILURE);
+        data.setMessage("gateway down");
+        data.setRetries(2);
+        data.setRetryTimeout("PT10M");
+
+        listener.on(data);
+
+        ServiceTaskFailed event = captured(ServiceTaskFailed.class);
+        assertThat(event.getRetries()).isEqualTo(2);
+        assertThat(event.getRetryTimeout()).isEqualTo("PT10M");
+    }
+
+    @Test
+    void failureWithoutOverrideLeavesItEmpty() {
+        ServiceTaskCompleteData data = data(ServiceTaskResultStatus.FAILURE);
+        data.setMessage("boom");
+
+        listener.on(data);
+
+        ServiceTaskFailed event = captured(ServiceTaskFailed.class);
+        assertThat(event.getRetries()).isNull();
+        assertThat(event.getRetryTimeout()).isNull();
+    }
+
+    @Test
+    void negativeRetriesMeanNoRetry() {
+        ServiceTaskCompleteData data = data(ServiceTaskResultStatus.FAILURE);
+        data.setMessage("boom");
+        data.setRetries(-3);
+
+        listener.on(data);
+
+        assertThat(captured(ServiceTaskFailed.class).getRetries()).isZero();
+    }
+
+    @Test
+    void invalidRetryTimeoutFallsBackToBpmn() {
+        ServiceTaskCompleteData data = data(ServiceTaskResultStatus.FAILURE);
+        data.setMessage("boom");
+        data.setRetryTimeout("soon");
+        ServiceTaskCompleteData negative = data(ServiceTaskResultStatus.FAILURE);
+        negative.setMessage("boom");
+        negative.setRetryTimeout("-PT1M");
+
+        listener.on(data);
+        assertThat(captured(ServiceTaskFailed.class).getRetryTimeout()).isNull();
+
+        org.mockito.Mockito.reset(publisher);
+        listener.on(negative);
+        assertThat(captured(ServiceTaskFailed.class).getRetryTimeout()).isNull();
     }
 
     private <T> T captured(Class<T> type) {

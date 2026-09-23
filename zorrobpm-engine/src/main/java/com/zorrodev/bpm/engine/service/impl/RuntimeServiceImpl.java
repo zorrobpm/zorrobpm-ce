@@ -4,7 +4,9 @@ import com.zorrodev.bpm.contract.dto.CompleteTaskDTO;
 import com.zorrodev.bpm.contract.dto.StartProcessInstanceDTO;
 import com.zorrodev.bpm.contract.model.ProcessDefinition;
 import com.zorrodev.bpm.contract.model.ProcessVariable;
+import com.zorrodev.bpm.engine.dto.FailureOutcome;
 import com.zorrodev.bpm.engine.dto.IdDTO;
+import com.zorrodev.bpm.engine.dto.RetryOverride;
 import com.zorrodev.bpm.engine.service.ActivityService;
 import com.zorrodev.bpm.engine.service.BpmnService;
 import com.zorrodev.bpm.engine.service.DBService;
@@ -59,10 +61,8 @@ public class RuntimeServiceImpl implements RuntimeService {
     }
 
     @Override
-    public IdDTO failServiceTask(UUID id, String message, String errorCode, String details) {
-        IdDTO result = new IdDTO();
-        result.setId(activityService.failServiceTask(id, new ErrorReport(errorCode, message, details)));
-        return result;
+    public FailureOutcome failServiceTask(UUID id, String message, String errorCode, String details, RetryOverride override) {
+        return activityService.failServiceTask(id, new ErrorReport(errorCode, message, details), override);
     }
 
     @Override

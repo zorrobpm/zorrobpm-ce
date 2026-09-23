@@ -23,6 +23,10 @@ public class ServiceTaskMapper {
         task.setProcessDefinitionId(entity.getProcessDefinitionId());
         task.setCreatedAt(entity.getCreatedAt());
         task.setCompletedAt(entity.getCompletedAt());
+        task.setRetries(entity.getRetries());
+        task.setNextRetryAt(entity.getNextRetryAt());
+        task.setLastErrorCode(entity.getLastErrorCode());
+        task.setLastErrorMessage(entity.getLastErrorMessage());
         if (element.getExtensions() != null && element.getExtensions().getServiceTaskExtension() != null) {
             String job = element.getExtensions().getServiceTaskExtension().getJob();
             task.setJob(job);

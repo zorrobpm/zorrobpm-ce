@@ -5,8 +5,11 @@ import com.zorrodev.bpm.contract.dto.CompleteTaskDTO;
 import com.zorrodev.bpm.contract.dto.FailServiceTaskDTO;
 import com.zorrodev.bpm.contract.dto.IdDTO;
 import com.zorrodev.bpm.contract.dto.ResolveIncidentDTO;
+import com.zorrodev.bpm.contract.dto.ServiceTaskFailureDTO;
 import com.zorrodev.bpm.contract.dto.StartProcessInstanceDTO;
 import com.zorrodev.bpm.contract.model.ProcessVariable;
+import com.zorrodev.bpm.engine.dto.FailureOutcome;
+import com.zorrodev.bpm.engine.dto.RetryOverride;
 import com.zorrodev.bpm.engine.service.RuntimeService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -14,6 +17,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -23,6 +28,7 @@ import org.springframework.web.server.ResponseStatusException;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -71,13 +77,51 @@ class RuntimeResourceTest {
         dto.setMessage("card declined");
         dto.setErrorCode("CARD_DECLINED");
         dto.setDetails("gateway response 402");
-        IdDTO expected = new IdDTO(UUID.randomUUID());
-        when(runtimeService.failServiceTask(id, "card declined", "CARD_DECLINED", "gateway response 402")).thenReturn(toEngineDTO(expected));
+        UUID incidentId = UUID.randomUUID();
+        when(runtimeService.failServiceTask(id, "card declined", "CARD_DECLINED", "gateway response 402", RetryOverride.NONE))
+            .thenReturn(new FailureOutcome(incidentId, 0, null));
 
-        IdDTO result = resource.failServiceTask(id, dto);
+        ServiceTaskFailureDTO result = resource.failServiceTask(id, dto);
 
-        assertThat(result.getId()).isSameAs(expected.getId());
-        verify(runtimeService).failServiceTask(id, "card declined", "CARD_DECLINED", "gateway response 402");
+        assertThat(result.getId()).isEqualTo(incidentId);
+        assertThat(result.getRetries()).isZero();
+        assertThat(result.getNextRetryAt()).isNull();
+    }
+
+    @Test
+    void failServiceTask_passesRetryOverrideAndReturnsScheduledRetry() {
+        UUID id = UUID.randomUUID();
+        FailServiceTaskDTO dto = new FailServiceTaskDTO();
+        dto.setMessage("gateway down");
+        dto.setRetries(3);
+        dto.setRetryTimeout("PT10M");
+        Instant nextRetryAt = Instant.parse("2026-09-23T10:10:00Z");
+        when(runtimeService.failServiceTask(id, "gateway down", null, null, new RetryOverride(3, Duration.ofMinutes(10))))
+            .thenReturn(new FailureOutcome(null, 2, nextRetryAt));
+
+        ServiceTaskFailureDTO result = resource.failServiceTask(id, dto);
+
+        assertThat(result.getId()).isNull();
+        assertThat(result.getRetries()).isEqualTo(2);
+        assertThat(result.getNextRetryAt()).isEqualTo(nextRetryAt);
+    }
+
+    @Test
+    void failServiceTask_invalidRetrySettings_returnBadRequest() {
+        for (FailServiceTaskDTO dto : List.of(failure(-1, null), failure(null, "soon"), failure(null, "-PT1M"))) {
+            assertThatThrownBy(() -> resource.failServiceTask(UUID.randomUUID(), dto))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(e -> assertThat(((ResponseStatusException) e).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+        }
+        verifyNoInteractions(runtimeService);
+    }
+
+    private static FailServiceTaskDTO failure(Integer retries, String retryTimeout) {
+        FailServiceTaskDTO dto = new FailServiceTaskDTO();
+        dto.setMessage("boom");
+        dto.setRetries(retries);
+        dto.setRetryTimeout(retryTimeout);
+        return dto;
     }
 
     @Test

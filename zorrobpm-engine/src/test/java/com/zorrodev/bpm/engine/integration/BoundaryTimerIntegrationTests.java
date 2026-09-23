@@ -6,6 +6,7 @@ import com.zorrodev.bpm.contract.model.ProcessVariable;
 import com.zorrodev.bpm.contract.model.ProcessVariableType;
 import com.zorrodev.bpm.engine.TestMain;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnElementType;
+import com.zorrodev.bpm.engine.dto.RetryOverride;
 import com.zorrodev.bpm.engine.entity.ActivityEntity;
 import com.zorrodev.bpm.engine.entity.ActivityStatus;
 import com.zorrodev.bpm.engine.entity.IncidentEntity;
@@ -325,7 +326,7 @@ public class BoundaryTimerIntegrationTests {
     void interruptingTimerOnHostWithIncidentClosesIt() {
         UUID instance = start("boundary/service-task.bpmn", string("sla", "PT10M"));
         UUID chargeId = single(activities(instance, "charge")).getId();
-        inTx(() -> activityService.failServiceTask(chargeId, new ErrorReport(null, "card declined", null)));
+        inTx(() -> activityService.failServiceTask(chargeId, new ErrorReport(null, "card declined", null), RetryOverride.NONE));
         assertThat(single(timers(chargeId)).getStatus()).isEqualTo(TimerStatus.SCHEDULED);
 
         clock.advance(Duration.ofMinutes(10));

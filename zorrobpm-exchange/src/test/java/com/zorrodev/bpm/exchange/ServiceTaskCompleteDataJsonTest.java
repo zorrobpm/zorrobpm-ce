@@ -43,8 +43,24 @@ class ServiceTaskCompleteDataJsonTest {
     }
 
     @Test
+    void retryFieldsAreRead() {
+        ServiceTaskCompleteData data = read("{" + ID + ",\"status\":\"FAILURE\",\"retries\":0,\"retryTimeout\":\"PT10M\"}");
+
+        assertThat(data.getRetries()).isZero();
+        assertThat(data.getRetryTimeout()).isEqualTo("PT10M");
+    }
+
+    @Test
+    void missingRetryFieldsAreNull() {
+        ServiceTaskCompleteData data = read("{" + ID + ",\"status\":\"FAILURE\"}");
+
+        assertThat(data.getRetries()).isNull();
+        assertThat(data.getRetryTimeout()).isNull();
+    }
+
+    @Test
     void unknownFieldsDoNotBreakReading() {
-        ServiceTaskCompleteData data = read("{" + ID + ",\"status\":\"SUCCESS\",\"retries\":3}");
+        ServiceTaskCompleteData data = read("{" + ID + ",\"status\":\"SUCCESS\",\"attempt\":3}");
 
         assertThat(data.getStatus()).isEqualTo(ServiceTaskResultStatus.SUCCESS);
     }

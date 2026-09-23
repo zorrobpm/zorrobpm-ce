@@ -3,18 +3,23 @@ package com.zorrodev.bpm.engine.integration;
 import com.zorrodev.bpm.engine.TestMain;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnElementType;
 import com.zorrodev.bpm.engine.dto.Activity;
+import com.zorrodev.bpm.engine.dto.ServiceTaskRetryState;
 import com.zorrodev.bpm.engine.dto.Timer;
 import com.zorrodev.bpm.engine.dto.TimerSchedule;
 import com.zorrodev.bpm.engine.entity.ActivityEntity;
 import com.zorrodev.bpm.engine.entity.ActivityStatus;
 import com.zorrodev.bpm.engine.entity.ProcessInstanceEntity;
+import com.zorrodev.bpm.engine.entity.ServiceTaskEntity;
 import com.zorrodev.bpm.engine.entity.TimerEntity;
+import com.zorrodev.bpm.engine.entity.TimerKind;
 import com.zorrodev.bpm.engine.entity.TimerStatus;
 import com.zorrodev.bpm.engine.repository.ActivityRepository;
 import com.zorrodev.bpm.engine.repository.ProcessInstanceRepository;
+import com.zorrodev.bpm.engine.repository.ServiceTaskRepository;
 import com.zorrodev.bpm.engine.repository.TimerRepository;
 import com.zorrodev.bpm.engine.service.DBService;
 import com.zorrodev.bpm.engine.service.ProcessDefinitionService;
+import com.zorrodev.bpm.exchange.ErrorReport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,7 +46,7 @@ import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Storage of boundary timers and the locks the poller relies on, against the real schema.
+ * Storage of timers (boundary and retry) and the locks the poller relies on, against the real schema.
  * Not @Transactional: the lock checks need two committed, concurrent transactions.
  */
 @SpringBootTest(classes = TestMain.class)
@@ -53,6 +58,9 @@ public class TimerPersistenceIntegrationTests {
 
     @Autowired
     private TimerRepository timerRepository;
+
+    @Autowired
+    private ServiceTaskRepository serviceTaskRepository;
 
     @Autowired
     private ActivityRepository activityRepository;
@@ -189,6 +197,63 @@ public class TimerPersistenceIntegrationTests {
         assertThat(inTx(() -> dbService.countOpenActivities(processInstanceId))).isEqualTo(1);
         assertThat(inTx(() -> dbService.findOpenActivities(processInstanceId))).extracting(Activity::getId).containsExactly(activityId);
         assertThat(inTx(() -> dbService.getProcessInstanceForUpdate(processInstanceId)).getId()).isEqualTo(processInstanceId);
+    }
+
+    @Test
+    void schedulesServiceTaskRetryWithTimerAndState() {
+        Instant dueAt = Instant.now().plus(1, ChronoUnit.DAYS).truncatedTo(ChronoUnit.MILLIS);
+        UUID activityId = inTx(this::createActivity);
+        run(() -> dbService.createServiceTask(activityId));
+        String longCode = "C".repeat(300);
+
+        run(() -> dbService.scheduleServiceTaskRetry(activityId, 2, new ErrorReport(longCode, "gateway timeout", "stack"), dueAt));
+
+        ServiceTaskEntity serviceTask = serviceTaskRepository.findById(activityId).orElseThrow();
+        assertThat(serviceTask.getRetries()).isEqualTo(2);
+        assertThat(serviceTask.getNextRetryAt()).isEqualTo(dueAt);
+        assertThat(serviceTask.getLastErrorMessage()).isEqualTo("gateway timeout");
+        assertThat(serviceTask.getLastErrorCode()).hasSize(ErrorReport.MAX_ERROR_CODE);
+        assertThat(inTx(() -> dbService.getServiceTaskRetryState(activityId))).isEqualTo(new ServiceTaskRetryState(2, dueAt));
+
+        List<TimerEntity> timers = timerRepository.findByActivityId(activityId);
+        assertThat(timers).singleElement().satisfies(t -> {
+            assertThat(t.getKind()).isEqualTo(TimerKind.RETRY);
+            assertThat(t.getStatus()).isEqualTo(TimerStatus.SCHEDULED);
+            assertThat(t.getDueAt()).isEqualTo(dueAt);
+            assertThat(t.getBpmnElementId()).isEqualTo("task");
+        });
+
+        run(() -> dbService.clearNextRetryAt(activityId));
+        run(() -> dbService.setServiceTaskRetries(activityId, 5));
+        assertThat(inTx(() -> dbService.getServiceTaskRetryState(activityId))).isEqualTo(new ServiceTaskRetryState(5, null));
+    }
+
+    @Test
+    void cancelTimersCancelsRetryTimerAndCompletionClearsNextRetry() {
+        Instant dueAt = Instant.now().plus(1, ChronoUnit.DAYS).truncatedTo(ChronoUnit.MILLIS);
+        UUID activityId = inTx(this::createActivity);
+        run(() -> dbService.createServiceTask(activityId));
+        run(() -> dbService.scheduleServiceTaskRetry(activityId, 0, new ErrorReport(null, "down", null), dueAt));
+
+        run(() -> {
+            dbService.cancelTimers(activityId);
+            dbService.completeServiceTask(activityId);
+        });
+
+        assertThat(timerRepository.findByActivityId(activityId)).singleElement()
+            .extracting(TimerEntity::getStatus).isEqualTo(TimerStatus.CANCELED);
+        assertThat(serviceTaskRepository.findById(activityId).orElseThrow().getNextRetryAt()).isNull();
+    }
+
+    @Test
+    void existingTimerKindDefaultsToBoundary() {
+        Instant dueAt = Instant.now().plus(1, ChronoUnit.DAYS).truncatedTo(ChronoUnit.MILLIS);
+        UUID activityId = inTx(this::createActivity);
+        UUID processInstanceId = activityRepository.findById(activityId).orElseThrow().getProcessInstanceId();
+
+        UUID timerId = inTx(() -> dbService.createTimer(processInstanceId, activityId, "a", TimerSchedule.once(dueAt)));
+
+        assertThat(inTx(() -> dbService.getTimerForUpdate(timerId)).orElseThrow().getKind()).isEqualTo(TimerKind.BOUNDARY);
     }
 
     @Test

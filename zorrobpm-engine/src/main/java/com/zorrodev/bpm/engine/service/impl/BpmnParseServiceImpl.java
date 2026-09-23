@@ -23,6 +23,8 @@ import org.springframework.stereotype.Service;
 import org.w3c.dom.Element;
 
 import java.io.StringReader;
+import java.time.Duration;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -256,8 +258,52 @@ public class BpmnParseServiceImpl implements BpmnParseService {
             element.setExtensions(new BpmnElementExtensionModel());
             element.getExtensions().setServiceTaskExtension(new ServiceTaskExtensionModel());
             element.getExtensions().getServiceTaskExtension().setJob(serviceTask.getExtensionElements().getTaskDefinition().getType());
+            element.getExtensions().getServiceTaskExtension().setRetries(parseRetries(serviceTask));
+            element.getExtensions().getServiceTaskExtension().setRetryTimeout(parseRetryTimeout(serviceTask));
         }
         return element;
+    }
+
+    static final String RETRY_TIMEOUT_PROPERTY = "retryTimeout";
+
+    /** {@code zeebe:taskDefinition@retries}: a literal integer {@code >= 0}, 0 when absent. */
+    private static int parseRetries(BpmnServiceTaskModel serviceTask) {
+        String value = serviceTask.getExtensionElements().getTaskDefinition().getRetries();
+        if (isBlank(value)) {
+            return 0;
+        }
+        int retries;
+        try {
+            retries = Integer.parseInt(value.trim());
+        } catch (NumberFormatException e) {
+            throw new BpmnParseException("Service task '" + serviceTask.getId() + "': retries '" + value + "' is not an integer");
+        }
+        if (retries < 0) {
+            throw new BpmnParseException("Service task '" + serviceTask.getId() + "': retries must not be negative, got " + retries);
+        }
+        return retries;
+    }
+
+    /** {@code zeebe:property name="retryTimeout"}: an ISO-8601 duration {@code >= 0}, zero when absent. */
+    private static Duration parseRetryTimeout(BpmnServiceTaskModel serviceTask) {
+        String value = Optional.ofNullable(serviceTask.getExtensionElements().getProperties())
+            .map(PropertiesModel::getProperties).orElse(List.of()).stream()
+            .filter(p -> RETRY_TIMEOUT_PROPERTY.equals(p.getName()))
+            .map(PropertyModel::getValue)
+            .findFirst().orElse(null);
+        if (isBlank(value)) {
+            return Duration.ZERO;
+        }
+        Duration timeout;
+        try {
+            timeout = Duration.parse(value.trim());
+        } catch (DateTimeParseException e) {
+            throw new BpmnParseException("Service task '" + serviceTask.getId() + "': retryTimeout '" + value + "' is not an ISO-8601 duration");
+        }
+        if (timeout.isNegative()) {
+            throw new BpmnParseException("Service task '" + serviceTask.getId() + "': retryTimeout must not be negative, got " + value);
+        }
+        return timeout;
     }
 
     private BpmnElementModel toElementModel(BpmnUserTaskModel userTask) {

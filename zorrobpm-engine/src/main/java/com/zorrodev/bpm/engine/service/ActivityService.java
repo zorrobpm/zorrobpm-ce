@@ -1,6 +1,8 @@
 package com.zorrodev.bpm.engine.service;
 
 import com.zorrodev.bpm.contract.model.ProcessVariable;
+import com.zorrodev.bpm.engine.dto.FailureOutcome;
+import com.zorrodev.bpm.engine.dto.RetryOverride;
 import com.zorrodev.bpm.exchange.ErrorReport;
 
 import java.util.List;
@@ -12,7 +14,11 @@ public interface ActivityService {
 
     void completeServiceTask(UUID activityId, List<ProcessVariable> variables);
 
-    UUID failServiceTask(UUID serviceTaskId, ErrorReport error);
+    /**
+     * Reports a failure of the service task: schedules a retry while retries are left, otherwise
+     * opens an incident. A repeated failure while an incident is open or a retry is pending changes nothing.
+     */
+    FailureOutcome failServiceTask(UUID serviceTaskId, ErrorReport error, RetryOverride override);
 
     void completeUserTask(UUID activityId, List<ProcessVariable> variables);
 
