@@ -7,6 +7,7 @@ import com.zorrodev.bpm.exchange.ServiceTaskCompleted;
 import com.zorrodev.bpm.exchange.ServiceTaskEnqueued;
 import com.zorrodev.bpm.exchange.ServiceTaskFailed;
 import com.zorrodev.bpm.exchange.ServiceTaskResultStatus;
+import com.zorrodev.bpm.rabbitmq.configuration.RabbitConfiguration;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.AmqpAdmin;
@@ -25,6 +26,9 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class ServiceTaskListener {
+
+    public static final String COMPLETE_SERVICE_TASK_QUEUE = "zorrobpm.complete-service-task";
+    public static final String COMPLETE_SERVICE_TASK_DLQ = COMPLETE_SERVICE_TASK_QUEUE + ".dlq";
 
     static final String UNSUPPORTED_RESULT_STATUS = "UNSUPPORTED_RESULT_STATUS";
     static final String INVALID_BPMN_ERROR = "INVALID_BPMN_ERROR";
@@ -49,8 +53,12 @@ public class ServiceTaskListener {
         log.info("Sent data for job {} to {}: {}", detail.getJob(), queueName, detail.getVariables());
     }
 
-    @RabbitListener(queuesToDeclare = @org.springframework.amqp.rabbit.annotation.Queue("zorrobpm.complete-service-task"))
+    @RabbitListener(queuesToDeclare = @org.springframework.amqp.rabbit.annotation.Queue(COMPLETE_SERVICE_TASK_QUEUE),
+        containerFactory = RabbitConfiguration.COMPLETE_SERVICE_TASK_CONTAINER_FACTORY)
     public void on(ServiceTaskCompleteData data) {
+        if (data.getServiceTaskId() == null) {
+            throw new InvalidServiceTaskResultException("Service task result without a service task id");
+        }
         if (data.getStatus() == ServiceTaskResultStatus.FAILURE) {
             log.info("Service task failure message received - {}: {} ({})", data.getServiceTaskId(), data.getMessage(), data.getErrorCode());
             ServiceTaskFailed failed = failed(data.getServiceTaskId(), data.getErrorCode(), data.getMessage(), data.getDetails());

@@ -1,5 +1,6 @@
 package com.zorrodev.bpm.engine.listener;
 
+import com.zorrodev.bpm.contract.exception.ServiceTaskNotFoundException;
 import com.zorrodev.bpm.contract.exception.TaskNotActiveException;
 import com.zorrodev.bpm.engine.dto.RetryOverride;
 import com.zorrodev.bpm.engine.service.ActivityService;
@@ -33,6 +34,9 @@ public class ServiceTaskFailedListener {
         } catch (TaskNotActiveException e) {
             // A late failure for a task that is already completed or was interrupted by a boundary timer.
             log.info("Ignoring failure of service task {}: {}", serviceTaskId, e.getMessage());
+        } catch (ServiceTaskNotFoundException e) {
+            // Nothing to fail: retrying the message would block the queue for every job.
+            log.warn("Ignoring failure of unknown service task {}: {} ({})", serviceTaskId, serviceTaskFailed.getMessage(), serviceTaskFailed.getErrorCode());
         }
     }
 

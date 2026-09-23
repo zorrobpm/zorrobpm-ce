@@ -8,14 +8,32 @@ import com.zorrodev.bpm.handler.BpmnError;
 import com.zorrodev.bpm.handler.JobFailedException;
 import com.zorrodev.bpm.handler.JobHandler;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.amqp.AmqpConnectException;
+import org.springframework.amqp.core.AmqpAdmin;
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.core.MessageProperties;
+import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.amqp.rabbit.retry.RepublishMessageRecoverer;
+import org.springframework.context.ApplicationContext;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 class HandlerAutoConfigurationTest {
 
@@ -137,6 +155,124 @@ class HandlerAutoConfigurationTest {
     void bpmnErrorRequiresCode() {
         assertThatThrownBy(() -> new BpmnError(" ", "no code")).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new BpmnError(null)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    // ---------------------------------------------------------------- job messages
+
+    @Test
+    void parse_readableJobGivesModel() {
+        UUID id = UUID.randomUUID();
+
+        HandlerAutoConfiguration.JobMessage job = HandlerAutoConfiguration.parse(bytes("{\"serviceTaskId\":\"" + id + "\",\"job\":\"charge\",\"variables\":{}}"));
+
+        assertThat(job.model().getServiceTaskId()).isEqualTo(id);
+        assertThat(job.failure()).isNull();
+    }
+
+    @Test
+    void parse_unreadableJobWithServiceTaskIdGivesFailureWithoutRetries() {
+        UUID id = UUID.randomUUID();
+
+        HandlerAutoConfiguration.JobMessage job = HandlerAutoConfiguration.parse(bytes("{\"serviceTaskId\":\"" + id + "\",\"variables\":5}"));
+
+        assertThat(job.model()).isNull();
+        ServiceTaskCompleteData failure = job.failure();
+        assertThat(failure.getServiceTaskId()).isEqualTo(id);
+        assertThat(failure.getStatus()).isEqualTo(ServiceTaskResultStatus.FAILURE);
+        assertThat(failure.getErrorCode()).isEqualTo("INVALID_JOB_MESSAGE");
+        assertThat(failure.getRetries()).isZero();
+        assertThat(failure.getMessage()).isNotBlank();
+        assertThat(failure.getDetails()).isNotBlank();
+        assertThat(failure.getVariables()).isEmpty();
+    }
+
+    @Test
+    void parse_unreadableJobWithoutServiceTaskIdGoesToDeadLetterQueue() {
+        for (String body : List.of("not a json", "{\"serviceTaskId\":\"x\"}", "{\"job\":\"charge\"}", "5")) {
+            HandlerAutoConfiguration.JobMessage job = HandlerAutoConfiguration.parse(bytes(body));
+
+            assertThat(job.model()).as(body).isNull();
+            assertThat(job.failure()).as(body).isNull();
+            assertThat(job.error()).as(body).isNotNull();
+        }
+    }
+
+    @Test
+    void onMessage_sendsResultWithoutTouchingTheApplicationTemplate() {
+        RabbitTemplate template = mock(RabbitTemplate.class);
+        UUID id = UUID.randomUUID();
+
+        configuration(template).onMessage(handler(m -> List.of()), JOBS, message("{\"serviceTaskId\":\"" + id + "\"}"));
+
+        ArgumentCaptor<Message> sent = ArgumentCaptor.forClass(Message.class);
+        verify(template).send(eq(""), eq("zorrobpm.complete-service-task"), sent.capture());
+        assertThat(new String(sent.getValue().getBody(), StandardCharsets.UTF_8)).contains(id.toString()).contains("SUCCESS");
+        verify(template, never()).setMessageConverter(any());
+    }
+
+    @Test
+    void onMessage_failedSendLeavesTheJobUnacknowledged() {
+        RabbitTemplate template = mock(RabbitTemplate.class);
+        doThrow(new AmqpConnectException(new java.net.ConnectException("refused"))).when(template).send(anyString(), anyString(), any(Message.class));
+        AtomicInteger calls = new AtomicInteger();
+
+        assertThatThrownBy(() -> configuration(template).onMessage(handler(m -> {
+            calls.incrementAndGet();
+            return List.of();
+        }), JOBS, message("{\"serviceTaskId\":\"" + UUID.randomUUID() + "\"}"))).isInstanceOf(AmqpConnectException.class);
+        assertThat(calls).hasValue(1);
+    }
+
+    @Test
+    void onMessage_unreadableJobWithServiceTaskIdSendsFailure() {
+        RabbitTemplate template = mock(RabbitTemplate.class);
+        AtomicInteger calls = new AtomicInteger();
+
+        configuration(template).onMessage(handler(m -> {
+            calls.incrementAndGet();
+            return List.of();
+        }), JOBS, message("{\"serviceTaskId\":\"" + UUID.randomUUID() + "\",\"variables\":5}"));
+
+        assertThat(calls).hasValue(0);
+        ArgumentCaptor<Message> sent = ArgumentCaptor.forClass(Message.class);
+        verify(template).send(eq(""), eq("zorrobpm.complete-service-task"), sent.capture());
+        assertThat(new String(sent.getValue().getBody(), StandardCharsets.UTF_8)).contains("INVALID_JOB_MESSAGE");
+    }
+
+    @Test
+    void onMessage_unreadableJobWithoutServiceTaskIdGoesToDeadLetterQueue() {
+        RabbitTemplate template = mock(RabbitTemplate.class);
+        AtomicInteger calls = new AtomicInteger();
+
+        configuration(template).onMessage(handler(m -> {
+            calls.incrementAndGet();
+            return List.of();
+        }), JOBS, message("not a json"));
+
+        assertThat(calls).hasValue(0);
+        ArgumentCaptor<Message> sent = ArgumentCaptor.forClass(Message.class);
+        verify(template).send(eq(""), eq(JOBS + ".dlq"), sent.capture());
+        assertThat(new String(sent.getValue().getBody(), StandardCharsets.UTF_8)).isEqualTo("not a json");
+        assertThat((String) sent.getValue().getMessageProperties().getHeader(RepublishMessageRecoverer.X_EXCEPTION_MESSAGE)).isNotBlank();
+        assertThat((String) sent.getValue().getMessageProperties().getHeader(RepublishMessageRecoverer.X_ORIGINAL_ROUTING_KEY)).isEqualTo(JOBS);
+        verify(template, never()).send(anyString(), eq("zorrobpm.complete-service-task"), any(Message.class));
+    }
+
+    private static final String JOBS = "zorrobpm.jobs.charge";
+
+    private static HandlerAutoConfiguration configuration(RabbitTemplate template) {
+        return new HandlerAutoConfiguration(mock(ApplicationContext.class), mock(SimpleRabbitListenerContainerFactory.class), template, mock(AmqpAdmin.class));
+    }
+
+    private static Message message(String body) {
+        MessageProperties properties = new MessageProperties();
+        properties.setReceivedExchange("");
+        properties.setReceivedRoutingKey(JOBS);
+        return new Message(bytes(body), properties);
+    }
+
+    private static byte[] bytes(String body) {
+        return body.getBytes(StandardCharsets.UTF_8);
     }
 
     private static JobDetailModel model() {
