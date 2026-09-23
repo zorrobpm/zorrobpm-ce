@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_bpmn-error-lookup" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="bpmn-error-lookup" name="BPMN error on a service task" isExecutable="true">
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>toTask</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="toTask" sourceRef="start" targetRef="lookup" />
+    <bpmn:sequenceFlow id="toDone" sourceRef="lookup" targetRef="done" />
+    <bpmn:serviceTask id="lookup" name="lookup">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="lookup" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>toTask</bpmn:incoming>
+      <bpmn:outgoing>toDone</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="done">
+      <bpmn:incoming>toDone</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:boundaryEvent id="notFound" name="notFound" attachedToRef="lookup">
+      <bpmn:outgoing>to_notFound</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="notFoundDefinition" errorRef="Error_NotFound" />
+    </bpmn:boundaryEvent>
+    <bpmn:sequenceFlow id="to_notFound" sourceRef="notFound" targetRef="createCustomer" />
+    <bpmn:userTask id="createCustomer" name="createCustomer">
+      <bpmn:incoming>to_notFound</bpmn:incoming>
+      <bpmn:outgoing>toCreated</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="toCreated" sourceRef="createCustomer" targetRef="created" />
+    <bpmn:endEvent id="created">
+      <bpmn:incoming>toCreated</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:boundaryEvent id="anyError" name="anyError" attachedToRef="lookup">
+      <bpmn:outgoing>to_anyError</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="anyErrorDefinition" />
+    </bpmn:boundaryEvent>
+    <bpmn:sequenceFlow id="to_anyError" sourceRef="anyError" targetRef="failed" />
+    <bpmn:endEvent id="failed">
+      <bpmn:incoming>to_anyError</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:boundaryEvent id="deadline" name="deadline" attachedToRef="lookup">
+      <bpmn:outgoing>to_deadline</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT5M</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:sequenceFlow id="to_deadline" sourceRef="deadline" targetRef="timedOut" />
+    <bpmn:endEvent id="timedOut">
+      <bpmn:incoming>to_deadline</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmn:error id="Error_NotFound" name="Customer not found" errorCode="CUSTOMER_NOT_FOUND" />
+</bpmn:definitions>

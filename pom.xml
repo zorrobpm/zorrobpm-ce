@@ -48,6 +48,7 @@
         <module>zorrobpm-test</module>
         <module>zorrobpm-exchange</module>
         <module>zorrobpm-rabbitmq</module>
+        <module>zorrobpm-grpc</module>
         <module>zorrobpm-ce</module>
     </modules>
 

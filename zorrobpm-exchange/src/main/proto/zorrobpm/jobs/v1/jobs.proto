@@ -1,0 +1,81 @@
+// The gRPC transport of service task jobs between the ZorroBPM engine and its workers.
+//
+// A worker opens a SubscribeJobs stream for the jobs it handles; the engine pushes a job to one
+// subscriber at a time and locks it for the lock timeout of that stream. The worker reports the
+// outcome with CompleteJob, FailJob or ThrowBpmnError. A job whose lock expires or whose stream closes
+// before a result is pushed again: delivery is at least once.
+syntax = "proto3";
+
+package zorrobpm.jobs.v1;
+
+import "google/protobuf/duration.proto";
+
+option java_package = "com.zorrodev.bpm.exchange.grpc";
+option java_multiple_files = true;
+option java_outer_classname = "JobsProto";
+
+service JobService {
+  // Streams the jobs of the given types as they become ready, until the worker or the engine closes it.
+  rpc SubscribeJobs(SubscribeJobsRequest) returns (stream Job);
+  // Completes the service task with the given variables (SUCCESS).
+  rpc CompleteJob(CompleteJobRequest) returns (JobResultResponse);
+  // Reports a handler failure: a retry or an incident, as for FAILURE in the RabbitMQ channel.
+  rpc FailJob(FailJobRequest) returns (JobResultResponse);
+  // Throws a BPMN error for an error boundary event of the service task (BPMN_ERROR).
+  rpc ThrowBpmnError(ThrowBpmnErrorRequest) returns (JobResultResponse);
+}
+
+message SubscribeJobsRequest {
+  // Job types to receive; at least one, none blank.
+  repeated string jobs = 1;
+  // Name of the worker, for the logs.
+  string worker = 2;
+  // How long a pushed job stays locked for this stream; unset - the engine's zorrobpm.grpc.lock-timeout.
+  google.protobuf.Duration lock_timeout = 3;
+  // Jobs pushed to this stream and still without a result; unset - 32.
+  optional int32 max_active_jobs = 4;
+}
+
+message Variable {
+  string name = 1;
+  string value = 2;
+  string type = 3;
+}
+
+message Job {
+  string service_task_id = 1;
+  string process_instance_id = 2;
+  string process_definition_id = 3;
+  string service_task_key = 4;
+  string job = 5;
+  // Retries still available for this service task if this attempt fails.
+  int32 retries = 6;
+  repeated Variable variables = 7;
+}
+
+message CompleteJobRequest {
+  string service_task_id = 1;
+  repeated Variable variables = 2;
+}
+
+message FailJobRequest {
+  string service_task_id = 1;
+  string error_code = 2;
+  string message = 3;
+  string details = 4;
+  // Retries still available at this failure; overrides the engine's counter. Unset - the engine decides.
+  optional int32 retries = 5;
+  // ISO-8601 duration until this retry; overrides the interval from BPMN. Unset - BPMN.
+  optional string retry_timeout = 6;
+  repeated Variable variables = 7;
+}
+
+message ThrowBpmnErrorRequest {
+  string service_task_id = 1;
+  string error_code = 2;
+  string message = 3;
+  repeated Variable variables = 4;
+}
+
+message JobResultResponse {
+}

@@ -12,6 +12,7 @@ import com.zorrodev.bpm.engine.dto.Activity;
 import com.zorrodev.bpm.engine.dto.ServiceTaskRetryState;
 import com.zorrodev.bpm.engine.service.BpmnService;
 import com.zorrodev.bpm.engine.service.DBService;
+import com.zorrodev.bpm.engine.service.JobDetailFactory;
 import com.zorrodev.bpm.exchange.JobDetailModel;
 import com.zorrodev.bpm.exchange.ServiceTaskEnqueued;
 import org.junit.jupiter.api.AfterEach;
@@ -19,7 +20,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
@@ -39,11 +39,11 @@ class ServiceTaskEnqueueServiceImplTest {
     @Mock private BpmnService bpmnService;
     @Mock private ApplicationEventPublisher publisher;
 
-    @InjectMocks
     private ServiceTaskEnqueueServiceImpl service;
 
     @BeforeEach
     void initSync() {
+        service = new ServiceTaskEnqueueServiceImpl(new JobDetailFactory(dbService, bpmnService), publisher);
         TransactionSynchronizationManager.initSynchronization();
     }
 

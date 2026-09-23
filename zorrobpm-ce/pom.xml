@@ -47,6 +47,12 @@
             <version>0.7.27-SNAPSHOT</version>
         </dependency>
 
+        <dependency>
+            <groupId>com.zorrodev.bpm</groupId>
+            <artifactId>zorrobpm-grpc</artifactId>
+            <version>0.7.27-SNAPSHOT</version>
+        </dependency>
+
     </dependencies>
 
     <build>

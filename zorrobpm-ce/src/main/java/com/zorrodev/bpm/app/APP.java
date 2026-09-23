@@ -9,6 +9,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
     "com.zorrodev.bpm.engine",
     "com.zorrodev.bpm.rest",
     "com.zorrodev.bpm.rabbitmq",
+    "com.zorrodev.bpm.grpc",
 })
 public class APP implements CommandLineRunner {
 

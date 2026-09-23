@@ -1,0 +1,26 @@
+databaseChangeLog:
+  - logicalFilePath: 20260923-032
+  - changeSet:
+      id: 20260923-032
+      author: zorrodev
+      comment: >
+        Lock of a service task job pushed to a worker over gRPC: until when it is locked and which
+        subscription holds it. Empty on the RabbitMQ transport, where the queue holds the job.
+      changes:
+        - addColumn:
+            tableName: service_tasks
+            columns:
+              - column:
+                  name: locked_until
+                  type: datetime with timezone
+              - column:
+                  name: locked_by
+                  type: varchar(255)
+        - createIndex:
+            tableName: service_tasks
+            indexName: idx_service_tasks_job_type_open
+            columns:
+              - column:
+                  name: job_type
+              - column:
+                  name: completed_at

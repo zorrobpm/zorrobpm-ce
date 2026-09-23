@@ -56,11 +56,15 @@ services:
       RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-zorrodev}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-zorrodev}
       APP_FILES_DIR: /app/files
+      # rabbitmq (default) or grpc: workers then connect to port 9090 instead of RabbitMQ.
+      ZORROBPM_TRANSPORT: ${ZORROBPM_TRANSPORT:-rabbitmq}
+      ZORROBPM_GRPC_PORT: 9090
       JAVA_OPTS: ${JAVA_OPTS:-}
     volumes:
       - app-files:/app/files
     ports:
       - "${APP_PORT:-8080}:8080"
+      - "${GRPC_PORT:-9090}:9090"
     restart: unless-stopped
 
 volumes:

@@ -19,6 +19,7 @@ import com.zorrodev.bpm.engine.entity.TimerStatus;
 import org.jspecify.annotations.NonNull;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -140,6 +141,21 @@ public interface DBService {
     void clearNextRetryAt(UUID serviceTaskId);
 
     void setServiceTaskRetries(UUID serviceTaskId, int retries);
+
+    /** Ids of the jobs of the given types ready to be pushed to a gRPC worker, oldest first. */
+    List<UUID> findReadyServiceTaskJobs(Collection<String> jobs, int limit);
+
+    /** Locks a ready job for {@code owner} until {@code until}; false if it is not ready any more. */
+    boolean lockServiceTaskJob(UUID serviceTaskId, String owner, Instant until);
+
+    /** Drops the lock of the job, whoever holds it. */
+    void releaseServiceTaskLock(UUID serviceTaskId);
+
+    /** Drops the lock of the job if {@code owner} holds it. */
+    void releaseServiceTaskLock(UUID serviceTaskId, String owner);
+
+    /** Drops every lock {@code owner} holds; returns how many. */
+    int releaseServiceTaskLocks(String owner);
 
     /**
      * Cancels the timers of the host activity that have not fired yet.
