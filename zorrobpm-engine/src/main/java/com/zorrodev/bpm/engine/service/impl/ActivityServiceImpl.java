@@ -288,6 +288,9 @@ public class ActivityServiceImpl implements ActivityService {
 
     @Override
     public void completeServiceTask(UUID serviceTaskId, List<ProcessVariable> variables) {
+        if (!dbService.hasServiceTask(serviceTaskId)) {
+            throw new ServiceTaskNotFoundException("Service task " + serviceTaskId + " not found");
+        }
         // The row lock serializes the completion with a boundary timer firing on this task.
         Activity activity = dbService.getActivityForUpdate(serviceTaskId);
         if (activity.getCompletedAt() != null) {

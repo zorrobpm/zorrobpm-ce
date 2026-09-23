@@ -20,7 +20,9 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class ServiceTaskListenerTest {
@@ -50,6 +52,16 @@ class ServiceTaskListenerTest {
         listener.on(data);
 
         assertThat(captured(ServiceTaskCompleted.class).getServiceTaskId()).isEqualTo(data.getServiceTaskId());
+    }
+
+    @Test
+    void resultWithoutServiceTaskIdIsRejected() {
+        ServiceTaskCompleteData data = data(ServiceTaskResultStatus.SUCCESS);
+        data.setServiceTaskId(null);
+
+        assertThatThrownBy(() -> listener.on(data)).isInstanceOf(InvalidServiceTaskResultException.class);
+
+        verifyNoInteractions(publisher);
     }
 
     @Test

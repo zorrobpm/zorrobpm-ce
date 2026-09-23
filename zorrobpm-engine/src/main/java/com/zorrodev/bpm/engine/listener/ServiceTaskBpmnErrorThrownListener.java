@@ -1,5 +1,6 @@
 package com.zorrodev.bpm.engine.listener;
 
+import com.zorrodev.bpm.contract.exception.ServiceTaskNotFoundException;
 import com.zorrodev.bpm.contract.exception.TaskNotActiveException;
 import com.zorrodev.bpm.contract.model.ProcessVariable;
 import com.zorrodev.bpm.contract.model.ProcessVariableType;
@@ -40,6 +41,9 @@ public class ServiceTaskBpmnErrorThrownListener {
         } catch (TaskNotActiveException e) {
             // A late error for a task that is already completed, interrupted or waiting for a retry.
             log.info("Ignoring BPMN error {} of service task {}: {}", event.getErrorCode(), serviceTaskId, e.getMessage());
+        } catch (ServiceTaskNotFoundException e) {
+            // Nothing to throw on: retrying the message would block the queue for every job.
+            log.warn("Ignoring BPMN error {} of unknown service task {}", event.getErrorCode(), serviceTaskId);
         }
     }
 }

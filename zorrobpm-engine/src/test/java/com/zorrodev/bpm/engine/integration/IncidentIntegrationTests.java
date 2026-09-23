@@ -3,6 +3,7 @@ package com.zorrodev.bpm.engine.integration;
 import com.zorrodev.bpm.contract.dto.PagedDataDTO;
 import com.zorrodev.bpm.contract.dto.StartProcessInstanceDTO;
 import com.zorrodev.bpm.contract.dto.query.UserTaskQuery;
+import com.zorrodev.bpm.contract.exception.ServiceTaskNotFoundException;
 import com.zorrodev.bpm.contract.model.ProcessDefinition;
 import com.zorrodev.bpm.contract.model.ProcessVariable;
 import com.zorrodev.bpm.contract.model.ProcessVariableType;
@@ -26,7 +27,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
-import java.util.NoSuchElementException;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -112,7 +112,7 @@ public class IncidentIntegrationTests {
         UUID unknown = UUID.randomUUID();
 
         assertThatThrownBy(() -> runtimeService.completeServiceTask(unknown, List.of()))
-            .isInstanceOf(NoSuchElementException.class);
+            .isInstanceOf(ServiceTaskNotFoundException.class);
         assertThat(incidentRepository.findAll()).noneMatch(incident -> unknown.equals(incident.getActivityId()));
     }
 

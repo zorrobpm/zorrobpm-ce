@@ -505,6 +505,19 @@ public class ActivityServiceImplTests {
     }
 
     @Test
+    public void completeServiceTask_rejectsIdWithoutServiceTask() {
+        UUID unknownId = UUID.randomUUID();
+        when(dbService.hasServiceTask(unknownId)).thenReturn(false);
+
+        assertThatThrownBy(() -> activityService.completeServiceTask(unknownId, List.of()))
+            .isInstanceOf(ServiceTaskNotFoundException.class);
+
+        verify(dbService, never()).getActivityForUpdate(any());
+        verify(dbService, never()).setVariables(any(), any());
+        verify(dbService, never()).completeActivity(any());
+    }
+
+    @Test
     public void failServiceTask_rejectsIdWithoutServiceTask() {
         UUID unknownOrUserTaskId = UUID.randomUUID();
         when(dbService.hasServiceTask(unknownOrUserTaskId)).thenReturn(false);

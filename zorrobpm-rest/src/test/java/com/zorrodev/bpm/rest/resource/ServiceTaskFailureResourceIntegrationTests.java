@@ -115,6 +115,12 @@ class ServiceTaskFailureResourceIntegrationTests {
     }
 
     @Test
+    void completionOfUnknownIdIsNotFound() throws Exception {
+        mockMvc.perform(post("/service-tasks/{id}/complete", UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content("{\"variables\":[]}"))
+            .andExpect(status().isNotFound());
+    }
+
+    @Test
     void failureOfUserTaskIsNotFound() throws Exception {
         UUID processInstanceId = start("user-task.bpmn");
         String body = mockMvc.perform(get("/user-tasks").param("processInstanceId", processInstanceId.toString()))
