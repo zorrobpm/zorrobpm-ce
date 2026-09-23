@@ -69,13 +69,15 @@ class RuntimeResourceTest {
         UUID id = UUID.randomUUID();
         FailServiceTaskDTO dto = new FailServiceTaskDTO();
         dto.setMessage("card declined");
+        dto.setErrorCode("CARD_DECLINED");
+        dto.setDetails("gateway response 402");
         IdDTO expected = new IdDTO(UUID.randomUUID());
-        when(runtimeService.failServiceTask(id, "card declined")).thenReturn(toEngineDTO(expected));
+        when(runtimeService.failServiceTask(id, "card declined", "CARD_DECLINED", "gateway response 402")).thenReturn(toEngineDTO(expected));
 
         IdDTO result = resource.failServiceTask(id, dto);
 
         assertThat(result.getId()).isSameAs(expected.getId());
-        verify(runtimeService).failServiceTask(id, "card declined");
+        verify(runtimeService).failServiceTask(id, "card declined", "CARD_DECLINED", "gateway response 402");
     }
 
     @Test

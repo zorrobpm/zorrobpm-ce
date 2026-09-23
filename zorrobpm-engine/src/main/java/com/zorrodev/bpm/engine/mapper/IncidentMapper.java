@@ -12,6 +12,8 @@ public class IncidentMapper {
         pi.setId(entity.getId());
         pi.setActivityId(entity.getActivityId());
         pi.setMessage(entity.getMessage());
+        pi.setErrorCode(entity.getErrorCode());
+        pi.setDetails(entity.getDetails());
         pi.setCompletedAt(entity.getCompletedAt());
         pi.setCreatedAt(entity.getCreatedAt());
         return pi;

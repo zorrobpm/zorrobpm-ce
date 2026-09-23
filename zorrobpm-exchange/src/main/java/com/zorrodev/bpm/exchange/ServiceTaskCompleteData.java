@@ -10,7 +10,9 @@ import java.util.UUID;
 @Setter
 public class ServiceTaskCompleteData {
     private UUID serviceTaskId;
-    private String status;
+    private ServiceTaskResultStatus status;
     private String message;
+    private String errorCode;
+    private String details;
     private List<ProcessVariable> variables;
 }

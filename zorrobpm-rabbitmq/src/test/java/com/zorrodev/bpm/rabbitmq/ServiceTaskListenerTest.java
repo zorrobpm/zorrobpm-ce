@@ -4,6 +4,7 @@ import com.zorrodev.bpm.exchange.ProcessVariable;
 import com.zorrodev.bpm.exchange.ServiceTaskCompleteData;
 import com.zorrodev.bpm.exchange.ServiceTaskCompleted;
 import com.zorrodev.bpm.exchange.ServiceTaskFailed;
+import com.zorrodev.bpm.exchange.ServiceTaskResultStatus;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -32,7 +33,7 @@ class ServiceTaskListenerTest {
 
     @Test
     void successPublishesCompleted() {
-        ServiceTaskCompleteData data = data("SUCCESS");
+        ServiceTaskCompleteData data = data(ServiceTaskResultStatus.SUCCESS);
 
         listener.on(data);
 
@@ -51,15 +52,44 @@ class ServiceTaskListenerTest {
     }
 
     @Test
-    void failurePublishesFailed() {
-        ServiceTaskCompleteData data = data("FAILURE");
-        data.setMessage("java.lang.IllegalStateException: boom");
+    void failurePublishesFailedWithCodeAndDetails() {
+        ServiceTaskCompleteData data = data(ServiceTaskResultStatus.FAILURE);
+        data.setMessage("boom");
+        data.setErrorCode("java.lang.IllegalStateException");
+        data.setDetails("java.lang.IllegalStateException: boom\n\tat Charge.run");
 
         listener.on(data);
 
         ServiceTaskFailed event = captured(ServiceTaskFailed.class);
         assertThat(event.getServiceTaskId()).isEqualTo(data.getServiceTaskId());
+        assertThat(event.getMessage()).isEqualTo("boom");
+        assertThat(event.getErrorCode()).isEqualTo("java.lang.IllegalStateException");
+        assertThat(event.getDetails()).isEqualTo(data.getDetails());
+    }
+
+    @Test
+    void failureFromOldWorkerHasNoCodeOrDetails() {
+        ServiceTaskCompleteData data = data(ServiceTaskResultStatus.FAILURE);
+        data.setMessage("java.lang.IllegalStateException: boom");
+
+        listener.on(data);
+
+        ServiceTaskFailed event = captured(ServiceTaskFailed.class);
         assertThat(event.getMessage()).isEqualTo("java.lang.IllegalStateException: boom");
+        assertThat(event.getErrorCode()).isNull();
+        assertThat(event.getDetails()).isNull();
+    }
+
+    @Test
+    void unsupportedStatusPublishesFailedNotCompleted() {
+        ServiceTaskCompleteData data = data(ServiceTaskResultStatus.UNSUPPORTED);
+
+        listener.on(data);
+
+        ServiceTaskFailed event = captured(ServiceTaskFailed.class);
+        assertThat(event.getServiceTaskId()).isEqualTo(data.getServiceTaskId());
+        assertThat(event.getErrorCode()).isEqualTo("UNSUPPORTED_RESULT_STATUS");
+        assertThat(event.getMessage()).isNotBlank();
     }
 
     private <T> T captured(Class<T> type) {
@@ -69,7 +99,7 @@ class ServiceTaskListenerTest {
         return type.cast(captor.getValue());
     }
 
-    private static ServiceTaskCompleteData data(String status) {
+    private static ServiceTaskCompleteData data(ServiceTaskResultStatus status) {
         ServiceTaskCompleteData data = new ServiceTaskCompleteData();
         data.setServiceTaskId(UUID.randomUUID());
         data.setStatus(status);

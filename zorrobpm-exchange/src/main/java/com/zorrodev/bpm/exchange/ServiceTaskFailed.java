@@ -10,4 +10,6 @@ import java.util.UUID;
 public class ServiceTaskFailed {
     private UUID serviceTaskId;
     private String message;
+    private String errorCode;
+    private String details;
 }

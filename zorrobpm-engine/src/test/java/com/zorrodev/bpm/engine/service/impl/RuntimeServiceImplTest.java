@@ -7,8 +7,10 @@ import com.zorrodev.bpm.engine.dto.IdDTO;
 import com.zorrodev.bpm.engine.service.ActivityService;
 import com.zorrodev.bpm.engine.service.BpmnService;
 import com.zorrodev.bpm.engine.service.DBService;
+import com.zorrodev.bpm.exchange.ErrorReport;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -118,11 +120,15 @@ class RuntimeServiceImplTest {
     void failServiceTask_delegatesAndReturnsIncidentId() {
         UUID id = UUID.randomUUID();
         UUID incidentId = UUID.randomUUID();
-        when(activityService.failServiceTask(id, "boom")).thenReturn(incidentId);
+        ArgumentCaptor<ErrorReport> error = ArgumentCaptor.forClass(ErrorReport.class);
+        when(activityService.failServiceTask(eq(id), error.capture())).thenReturn(incidentId);
 
-        IdDTO result = runtimeService.failServiceTask(id, "boom");
+        IdDTO result = runtimeService.failServiceTask(id, "boom", "CARD_DECLINED", "stack");
 
         assertThat(result.getId()).isEqualTo(incidentId);
+        assertThat(error.getValue().getMessage()).isEqualTo("boom");
+        assertThat(error.getValue().getErrorCode()).isEqualTo("CARD_DECLINED");
+        assertThat(error.getValue().getDetails()).isEqualTo("stack");
     }
 
     @Test

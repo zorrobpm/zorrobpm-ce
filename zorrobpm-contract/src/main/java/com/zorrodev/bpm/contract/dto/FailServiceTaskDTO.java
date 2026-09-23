@@ -7,4 +7,6 @@ import lombok.Setter;
 @Setter
 public class FailServiceTaskDTO {
     private String message;
+    private String errorCode;
+    private String details;
 }

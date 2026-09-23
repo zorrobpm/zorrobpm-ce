@@ -9,6 +9,7 @@ import com.zorrodev.bpm.engine.service.ActivityService;
 import com.zorrodev.bpm.engine.service.BpmnService;
 import com.zorrodev.bpm.engine.service.DBService;
 import com.zorrodev.bpm.engine.service.RuntimeService;
+import com.zorrodev.bpm.exchange.ErrorReport;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -58,9 +59,9 @@ public class RuntimeServiceImpl implements RuntimeService {
     }
 
     @Override
-    public IdDTO failServiceTask(UUID id, String message) {
+    public IdDTO failServiceTask(UUID id, String message, String errorCode, String details) {
         IdDTO result = new IdDTO();
-        result.setId(activityService.failServiceTask(id, message));
+        result.setId(activityService.failServiceTask(id, new ErrorReport(errorCode, message, details)));
         return result;
     }
 

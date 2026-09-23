@@ -1,6 +1,7 @@
 package com.zorrodev.bpm.engine.service;
 
 import com.zorrodev.bpm.contract.model.ProcessVariable;
+import com.zorrodev.bpm.exchange.ErrorReport;
 
 import java.util.List;
 import java.util.UUID;
@@ -11,7 +12,7 @@ public interface ActivityService {
 
     void completeServiceTask(UUID activityId, List<ProcessVariable> variables);
 
-    UUID failServiceTask(UUID serviceTaskId, String message);
+    UUID failServiceTask(UUID serviceTaskId, ErrorReport error);
 
     void completeUserTask(UUID activityId, List<ProcessVariable> variables);
 

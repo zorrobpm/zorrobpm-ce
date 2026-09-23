@@ -8,6 +8,7 @@ import com.zorrodev.bpm.engine.bpmn.model.BpmnFlowModel;
 import com.zorrodev.bpm.engine.dto.Activity;
 import com.zorrodev.bpm.engine.dto.ResolvedAssignment;
 import com.zorrodev.bpm.contract.dto.Incident;
+import com.zorrodev.bpm.exchange.ErrorReport;
 import com.zorrodev.bpm.engine.dto.Timer;
 import com.zorrodev.bpm.engine.dto.TimerSchedule;
 import com.zorrodev.bpm.engine.dto.Token;
@@ -74,7 +75,7 @@ public interface DBService {
 
     void completeProcessInstance(UUID processInstanceId);
 
-    UUID createIncident(UUID activityId, String message);
+    UUID createIncident(UUID activityId, ErrorReport error);
 
     Incident getIncident(UUID incidentId);
 

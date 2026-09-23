@@ -43,6 +43,7 @@ import com.zorrodev.bpm.engine.repository.UserTaskCandidateRepository;
 import com.zorrodev.bpm.engine.repository.UserTaskRepository;
 import com.zorrodev.bpm.engine.repository.VariableRepository;
 import com.zorrodev.bpm.engine.service.DBService;
+import com.zorrodev.bpm.exchange.ErrorReport;
 import com.zorrodev.bpm.event.UserTaskInstanceCreatedEvent;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.NonNull;
@@ -400,15 +401,18 @@ public class DBServiceImpl implements DBService {
     }
 
     @Override
-    public UUID createIncident(UUID activityId, String message) {
+    public UUID createIncident(UUID activityId, ErrorReport error) {
         ActivityEntity activityEntity = activityRepository.findById(activityId).orElseThrow();
         UUID id = UUID.randomUUID();
+        ErrorReport stored = ErrorReport.truncate(error);
 
         IncidentEntity entity = new IncidentEntity();
         entity.setId(id);
         entity.setActivityId(activityId);
         entity.setCreatedAt(Instant.now());
-        entity.setMessage(message);
+        entity.setMessage(stored.getMessage());
+        entity.setErrorCode(stored.getErrorCode());
+        entity.setDetails(stored.getDetails());
         incidentRepository.save(entity);
 
         return id;

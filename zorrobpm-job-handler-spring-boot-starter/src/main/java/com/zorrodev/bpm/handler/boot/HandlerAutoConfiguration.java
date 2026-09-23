@@ -1,8 +1,11 @@
 package com.zorrodev.bpm.handler.boot;
 
+import com.zorrodev.bpm.exchange.ErrorReport;
 import com.zorrodev.bpm.exchange.JobDetailModel;
 import com.zorrodev.bpm.exchange.ProcessVariable;
 import com.zorrodev.bpm.exchange.ServiceTaskCompleteData;
+import com.zorrodev.bpm.exchange.ServiceTaskResultStatus;
+import com.zorrodev.bpm.handler.JobFailedException;
 import com.zorrodev.bpm.handler.JobHandler;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -62,7 +65,7 @@ public class HandlerAutoConfiguration {
 
     /**
      * Runs the handler and builds the message for the engine: SUCCESS with the handler's
-     * variables, or FAILURE with the error text when the handler throws.
+     * variables, or FAILURE with the error code, text and stack trace when the handler throws.
      */
     static ServiceTaskCompleteData handle(JobHandler handler, JobDetailModel model) {
         ServiceTaskCompleteData completeData = new ServiceTaskCompleteData();
@@ -75,12 +78,15 @@ public class HandlerAutoConfiguration {
                 v.setType(x.getType().toString());
                 return v;
             }).toList();
-            completeData.setStatus("SUCCESS");
+            completeData.setStatus(ServiceTaskResultStatus.SUCCESS);
             completeData.setVariables(result);
         } catch (Exception e) {
             log.error("Job {} failed for service task {}", handler.getJob(), model.getServiceTaskId(), e);
-            completeData.setStatus("FAILURE");
-            completeData.setMessage(e.getClass().getName() + ": " + e.getMessage());
+            ErrorReport report = ErrorReport.of(e, e instanceof JobFailedException failed ? failed.getErrorCode() : null);
+            completeData.setStatus(ServiceTaskResultStatus.FAILURE);
+            completeData.setMessage(report.getMessage());
+            completeData.setErrorCode(report.getErrorCode());
+            completeData.setDetails(report.getDetails());
             completeData.setVariables(List.of());
         }
         return completeData;

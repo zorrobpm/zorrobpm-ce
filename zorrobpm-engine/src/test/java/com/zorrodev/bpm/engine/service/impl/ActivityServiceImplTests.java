@@ -20,6 +20,7 @@ import com.zorrodev.bpm.engine.service.BpmnService;
 import com.zorrodev.bpm.engine.service.DBService;
 import com.zorrodev.bpm.engine.service.ScriptService;
 import com.zorrodev.bpm.engine.service.ServiceTaskEnqueueService;
+import com.zorrodev.bpm.exchange.ErrorReport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -447,12 +448,13 @@ public class ActivityServiceImplTests {
         when(dbService.hasServiceTask(serviceTaskId)).thenReturn(true);
         when(dbService.getActivityForUpdate(serviceTaskId)).thenReturn(serviceTaskActivity(serviceTaskId, ActivityStatus.CREATED, null));
         when(dbService.findOpenIncidentId(serviceTaskId)).thenReturn(Optional.empty());
-        when(dbService.createIncident(serviceTaskId, "boom")).thenReturn(incidentId);
+        ErrorReport error = new ErrorReport("CARD_DECLINED", "boom", "stack");
+        when(dbService.createIncident(serviceTaskId, error)).thenReturn(incidentId);
 
-        UUID result = activityService.failServiceTask(serviceTaskId, "boom");
+        UUID result = activityService.failServiceTask(serviceTaskId, error);
 
         assertThat(result).isEqualTo(incidentId);
-        verify(dbService).createIncident(serviceTaskId, "boom");
+        verify(dbService).createIncident(serviceTaskId, error);
         verify(dbService).setActivityStatus(serviceTaskId, ActivityStatus.ERROR);
         verify(dbService, never()).completeServiceTask(any());
         verify(dbService, never()).completeActivity(any());
@@ -466,7 +468,7 @@ public class ActivityServiceImplTests {
         when(dbService.getActivityForUpdate(serviceTaskId)).thenReturn(serviceTaskActivity(serviceTaskId, ActivityStatus.ERROR, null));
         when(dbService.findOpenIncidentId(serviceTaskId)).thenReturn(Optional.of(openIncidentId));
 
-        UUID result = activityService.failServiceTask(serviceTaskId, "boom again");
+        UUID result = activityService.failServiceTask(serviceTaskId, new ErrorReport(null, "boom again", null));
 
         assertThat(result).isEqualTo(openIncidentId);
         verify(dbService, never()).createIncident(any(), any());
@@ -479,7 +481,7 @@ public class ActivityServiceImplTests {
         when(dbService.hasServiceTask(serviceTaskId)).thenReturn(true);
         when(dbService.getActivityForUpdate(serviceTaskId)).thenReturn(serviceTaskActivity(serviceTaskId, ActivityStatus.COMPLETED, Instant.now()));
 
-        assertThatThrownBy(() -> activityService.failServiceTask(serviceTaskId, "boom"))
+        assertThatThrownBy(() -> activityService.failServiceTask(serviceTaskId, new ErrorReport(null, "boom", null)))
             .isInstanceOf(TaskNotActiveException.class);
 
         verify(dbService, never()).createIncident(any(), any());
@@ -491,7 +493,7 @@ public class ActivityServiceImplTests {
         UUID unknownOrUserTaskId = UUID.randomUUID();
         when(dbService.hasServiceTask(unknownOrUserTaskId)).thenReturn(false);
 
-        assertThatThrownBy(() -> activityService.failServiceTask(unknownOrUserTaskId, "boom"))
+        assertThatThrownBy(() -> activityService.failServiceTask(unknownOrUserTaskId, new ErrorReport(null, "boom", null)))
             .isInstanceOf(ServiceTaskNotFoundException.class);
 
         verify(dbService, never()).getActivityForUpdate(any());
@@ -540,7 +542,11 @@ public class ActivityServiceImplTests {
 
         verify(dbService).cancelOpenChildUserTasks(gatewayActivityId);
         verify(dbService).setActivityStatus(gatewayActivityId, ActivityStatus.ERROR);
-        verify(dbService).createIncident(gatewayActivityId, "java.lang.IllegalStateException: a is undefined");
+        ArgumentCaptor<ErrorReport> error = ArgumentCaptor.forClass(ErrorReport.class);
+        verify(dbService).createIncident(eq(gatewayActivityId), error.capture());
+        assertThat(error.getValue().getErrorCode()).isEqualTo("java.lang.IllegalStateException");
+        assertThat(error.getValue().getMessage()).isEqualTo("a is undefined");
+        assertThat(error.getValue().getDetails()).startsWith("java.lang.IllegalStateException: a is undefined").contains("\tat ");
         verify(dbService, never()).createActivity(processInstanceId, token, bpmn.getElement("userTask1"));
         verify(dbService, never()).createActivity(processInstanceId, token, bpmn.getElement("userTask2"));
     }

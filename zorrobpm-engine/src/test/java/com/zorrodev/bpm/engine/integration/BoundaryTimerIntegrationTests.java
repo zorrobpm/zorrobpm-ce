@@ -25,6 +25,7 @@ import com.zorrodev.bpm.engine.service.ProcessDefinitionService;
 import com.zorrodev.bpm.engine.service.RuntimeService;
 import com.zorrodev.bpm.engine.service.TimerJobService;
 import com.zorrodev.bpm.engine.test.MutableClock;
+import com.zorrodev.bpm.exchange.ErrorReport;
 import com.zorrodev.bpm.exchange.ServiceTaskCompleted;
 import com.zorrodev.bpm.exchange.ServiceTaskFailed;
 import org.junit.jupiter.api.AfterEach;
@@ -324,7 +325,7 @@ public class BoundaryTimerIntegrationTests {
     void interruptingTimerOnHostWithIncidentClosesIt() {
         UUID instance = start("boundary/service-task.bpmn", string("sla", "PT10M"));
         UUID chargeId = single(activities(instance, "charge")).getId();
-        inTx(() -> activityService.failServiceTask(chargeId, "card declined"));
+        inTx(() -> activityService.failServiceTask(chargeId, new ErrorReport(null, "card declined", null)));
         assertThat(single(timers(chargeId)).getStatus()).isEqualTo(TimerStatus.SCHEDULED);
 
         clock.advance(Duration.ofMinutes(10));

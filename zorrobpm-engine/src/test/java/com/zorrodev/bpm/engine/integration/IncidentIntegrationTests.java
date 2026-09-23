@@ -69,7 +69,9 @@ public class IncidentIntegrationTests {
         assertThat(gateway.getStatus()).isEqualTo(ActivityStatus.ERROR);
         IncidentEntity incident = single(incidents(gateway.getId()));
         assertThat(incident.getCompletedAt()).isNull();
-        assertThat(incident.getMessage()).contains("ScriptException").contains("amount");
+        assertThat(incident.getMessage()).contains("amount");
+        assertThat(incident.getErrorCode()).endsWith("ScriptException");
+        assertThat(incident.getDetails()).contains("ScriptException").contains("\tat ");
 
         assertThat(activities(processInstanceId, "small")).isEmpty();
         assertThat(activities(processInstanceId, "big")).isEmpty();

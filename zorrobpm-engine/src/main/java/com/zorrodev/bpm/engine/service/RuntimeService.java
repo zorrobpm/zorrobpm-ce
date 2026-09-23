@@ -19,7 +19,7 @@ public interface RuntimeService {
     /**
      * Reports a failure of the service task and returns the id of its open incident.
      */
-    IdDTO failServiceTask(UUID id, String message);
+    IdDTO failServiceTask(UUID id, String message, String errorCode, String details);
 
     IdDTO completeUserTask(UUID id, List<ProcessVariable> variables);
 

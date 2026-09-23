@@ -3,6 +3,8 @@ package com.zorrodev.bpm.handler.boot;
 import com.zorrodev.bpm.exchange.JobDetailModel;
 import com.zorrodev.bpm.exchange.ProcessVariable;
 import com.zorrodev.bpm.exchange.ServiceTaskCompleteData;
+import com.zorrodev.bpm.exchange.ServiceTaskResultStatus;
+import com.zorrodev.bpm.handler.JobFailedException;
 import com.zorrodev.bpm.handler.JobHandler;
 import org.junit.jupiter.api.Test;
 
@@ -25,8 +27,9 @@ class HandlerAutoConfigurationTest {
         ServiceTaskCompleteData data = HandlerAutoConfiguration.handle(handler(m -> List.of(variable)), model);
 
         assertThat(data.getServiceTaskId()).isEqualTo(model.getServiceTaskId());
-        assertThat(data.getStatus()).isEqualTo("SUCCESS");
+        assertThat(data.getStatus()).isEqualTo(ServiceTaskResultStatus.SUCCESS);
         assertThat(data.getMessage()).isNull();
+        assertThat(data.getErrorCode()).isNull();
         assertThat(data.getVariables()).singleElement().satisfies(v -> {
             assertThat(v.getName()).isEqualTo("approved");
             assertThat(v.getValue()).isEqualTo("true");
@@ -43,9 +46,33 @@ class HandlerAutoConfigurationTest {
         }), model);
 
         assertThat(data.getServiceTaskId()).isEqualTo(model.getServiceTaskId());
-        assertThat(data.getStatus()).isEqualTo("FAILURE");
-        assertThat(data.getMessage()).isEqualTo("java.lang.IllegalArgumentException: card declined");
+        assertThat(data.getStatus()).isEqualTo(ServiceTaskResultStatus.FAILURE);
+        assertThat(data.getMessage()).isEqualTo("card declined");
+        assertThat(data.getErrorCode()).isEqualTo("java.lang.IllegalArgumentException");
+        assertThat(data.getDetails()).startsWith("java.lang.IllegalArgumentException: card declined").contains("\tat ");
         assertThat(data.getVariables()).isEmpty();
+    }
+
+    @Test
+    void handle_exceptionWithoutTextUsesClassName() {
+        ServiceTaskCompleteData data = HandlerAutoConfiguration.handle(handler(m -> {
+            throw new NullPointerException();
+        }), model());
+
+        assertThat(data.getMessage()).isEqualTo("java.lang.NullPointerException");
+        assertThat(data.getErrorCode()).isEqualTo("java.lang.NullPointerException");
+    }
+
+    @Test
+    void handle_jobFailedExceptionCarriesItsCode() {
+        ServiceTaskCompleteData data = HandlerAutoConfiguration.handle(handler(m -> {
+            throw new JobFailedException("CARD_DECLINED", "card declined", new IllegalStateException("gateway said 402"));
+        }), model());
+
+        assertThat(data.getStatus()).isEqualTo(ServiceTaskResultStatus.FAILURE);
+        assertThat(data.getErrorCode()).isEqualTo("CARD_DECLINED");
+        assertThat(data.getMessage()).isEqualTo("card declined");
+        assertThat(data.getDetails()).contains("Caused by: java.lang.IllegalStateException: gateway said 402");
     }
 
     private static JobDetailModel model() {

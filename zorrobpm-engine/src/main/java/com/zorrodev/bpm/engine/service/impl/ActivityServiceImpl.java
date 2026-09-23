@@ -31,6 +31,7 @@ import com.zorrodev.bpm.engine.service.DBService;
 import com.zorrodev.bpm.engine.service.ScriptService;
 import com.zorrodev.bpm.engine.service.ServiceTaskEnqueueService;
 import com.zorrodev.bpm.engine.service.TimerExpressionService;
+import com.zorrodev.bpm.exchange.ErrorReport;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
@@ -102,7 +103,7 @@ public class ActivityServiceImpl implements ActivityService {
             .orElseGet(() -> dbService.createActivity(processInstanceId, tokenId, element));
         dbService.cancelOpenChildUserTasks(activityId);
         dbService.setActivityStatus(activityId, ActivityStatus.ERROR);
-        UUID incidentId = dbService.createIncident(activityId, e.getClass().getName() + ": " + e.getMessage());
+        UUID incidentId = dbService.createIncident(activityId, ErrorReport.of(e, null));
 
         log.warn("{}/{}: Incident {} on {}: {}/{}", processInstanceId, tokenId, incidentId, element.getType(), activityId, element.getId(), e);
     }
@@ -303,7 +304,7 @@ public class ActivityServiceImpl implements ActivityService {
     }
 
     @Override
-    public UUID failServiceTask(UUID serviceTaskId, String message) {
+    public UUID failServiceTask(UUID serviceTaskId, ErrorReport error) {
         if (!dbService.hasServiceTask(serviceTaskId)) {
             throw new ServiceTaskNotFoundException("Service task " + serviceTaskId + " not found");
         }
@@ -319,10 +320,10 @@ public class ActivityServiceImpl implements ActivityService {
             return openIncidentId.get();
         }
 
-        UUID incidentId = dbService.createIncident(serviceTaskId, message);
+        UUID incidentId = dbService.createIncident(serviceTaskId, error);
         dbService.setActivityStatus(serviceTaskId, ActivityStatus.ERROR);
 
-        log.warn("{}/{}: Incident {} on {}: {}/{}: {}", activity.getProcessInstanceId(), activity.getToken(), incidentId, activity.getType(), serviceTaskId, activity.getBpmnElementId(), message);
+        log.warn("{}/{}: Incident {} on {}: {}/{}: {} ({})", activity.getProcessInstanceId(), activity.getToken(), incidentId, activity.getType(), serviceTaskId, activity.getBpmnElementId(), error.getMessage(), error.getErrorCode());
         return incidentId;
     }
 

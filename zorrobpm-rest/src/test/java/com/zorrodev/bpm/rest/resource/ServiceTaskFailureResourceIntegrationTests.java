@@ -57,6 +57,32 @@ class ServiceTaskFailureResourceIntegrationTests {
     }
 
     @Test
+    void failureWithCodeAndDetailsKeepsThem() throws Exception {
+        UUID serviceTaskId = openServiceTask(start("service-task.bpmn"));
+        String body = "{\"message\":\"card declined\",\"errorCode\":\"CARD_DECLINED\",\"details\":\"gateway response 402\"}";
+
+        UUID incidentId = new FailResult(mockMvc.perform(post("/service-tasks/{id}/fail", serviceTaskId)
+                .contentType(MediaType.APPLICATION_JSON).content(body)))
+            .andExpect(status().isOk()).andReturnId();
+
+        mockMvc.perform(get("/incidents/{id}", incidentId))
+            .andExpect(jsonPath("$.message").value("card declined"))
+            .andExpect(jsonPath("$.errorCode").value("CARD_DECLINED"))
+            .andExpect(jsonPath("$.details").value("gateway response 402"));
+    }
+
+    @Test
+    void failureWithoutCodeAndDetailsLeavesThemEmpty() throws Exception {
+        UUID serviceTaskId = openServiceTask(start("service-task.bpmn"));
+
+        UUID incidentId = fail(serviceTaskId, "card declined").andExpect(status().isOk()).andReturnId();
+
+        mockMvc.perform(get("/incidents/{id}", incidentId))
+            .andExpect(jsonPath("$.errorCode").doesNotExist())
+            .andExpect(jsonPath("$.details").doesNotExist());
+    }
+
+    @Test
     void repeatedFailureReturnsTheOpenIncident() throws Exception {
         UUID serviceTaskId = openServiceTask(start("service-task.bpmn"));
         UUID first = fail(serviceTaskId, "card declined").andExpect(status().isOk()).andReturnId();

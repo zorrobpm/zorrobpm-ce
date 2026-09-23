@@ -43,7 +43,7 @@ public class RuntimeResource implements RuntimeContract {
         if (dto.getMessage() == null || dto.getMessage().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "message is required");
         }
-        return Optional.ofNullable(runtimeService.failServiceTask(id, dto.getMessage())).map(this::toDTO).orElseThrow();
+        return Optional.ofNullable(runtimeService.failServiceTask(id, dto.getMessage(), dto.getErrorCode(), dto.getDetails())).map(this::toDTO).orElseThrow();
     }
 
     @Transactional
