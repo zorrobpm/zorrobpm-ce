@@ -12,8 +12,11 @@ public interface JobHandler {
     /**
      * Does the work of one service task and returns the variables to set on the process.
      * <p>
-     * Delivery is at least once: the job message is acknowledged only after the result has been
-     * sent to the engine. The handler can therefore be called again for the same
+     * Delivery is at least once on both transports ({@code zorrobpm.handler.transport}). Over RabbitMQ
+     * the job message is acknowledged only after the result has been sent to the engine; over gRPC the
+     * engine locks the job for this worker and pushes it again when no result comes before the lock
+     * expires ({@code zorrobpm.handler.grpc.lock-timeout}, which must therefore be longer than the
+     * handler runs). The handler can therefore be called again for the same
      * {@link JobDetailModel#getServiceTaskId() service task id}, for example when sending the result
      * fails, when the worker stops before the acknowledgement, or when the engine retries the job.
      * Side effects outside the process (payments, emails, calls to other systems) must be idempotent

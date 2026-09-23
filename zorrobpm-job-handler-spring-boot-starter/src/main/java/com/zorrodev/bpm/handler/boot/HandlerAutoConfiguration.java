@@ -2,11 +2,8 @@ package com.zorrodev.bpm.handler.boot;
 
 import com.zorrodev.bpm.exchange.ErrorReport;
 import com.zorrodev.bpm.exchange.JobDetailModel;
-import com.zorrodev.bpm.exchange.ProcessVariable;
 import com.zorrodev.bpm.exchange.ServiceTaskCompleteData;
 import com.zorrodev.bpm.exchange.ServiceTaskResultStatus;
-import com.zorrodev.bpm.handler.BpmnError;
-import com.zorrodev.bpm.handler.JobFailedException;
 import com.zorrodev.bpm.handler.JobHandler;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +18,7 @@ import org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer;
 import org.springframework.amqp.rabbit.retry.RepublishMessageRecoverer;
 import org.springframework.amqp.support.converter.JacksonJsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Configuration;
 import tools.jackson.databind.JsonNode;
@@ -42,9 +40,13 @@ import java.util.UUID;
  * <p>
  * The shared factory and {@link RabbitTemplate} of the application are used as they are: the
  * starter parses and builds its messages with its own mapper and converter.
+ * <p>
+ * The RabbitMQ transport of the starter, active unless {@code zorrobpm.handler.transport=grpc}
+ * ({@link GrpcHandlerAutoConfiguration}).
  */
 @Slf4j
 @Configuration
+@ConditionalOnProperty(name = HandlerTransport.PROPERTY, havingValue = "rabbitmq", matchIfMissing = true)
 @RequiredArgsConstructor
 public class HandlerAutoConfiguration {
 
@@ -151,49 +153,8 @@ public class HandlerAutoConfiguration {
         return queueName + ".dlq";
     }
 
-    /**
-     * Runs the handler and builds the message for the engine: SUCCESS with the handler's
-     * variables, BPMN_ERROR with the code, text and variables of a {@link BpmnError}, or FAILURE with
-     * the error code, text and stack trace when the handler throws anything else, plus the retry
-     * override of a {@link JobFailedException}.
-     */
+    /** The outcome of the handler as the result for the engine: the same on every transport. */
     static ServiceTaskCompleteData handle(JobHandler handler, JobDetailModel model) {
-        ServiceTaskCompleteData completeData = new ServiceTaskCompleteData();
-        completeData.setServiceTaskId(model.getServiceTaskId());
-        try {
-            completeData.setStatus(ServiceTaskResultStatus.SUCCESS);
-            completeData.setVariables(toVariables(handler.handleJob(model)));
-        } catch (BpmnError e) {
-            // An expected business outcome, not a failure: no stack trace, no retries.
-            log.info("Job {} threw BPMN error {} for service task {}: {}", handler.getJob(), e.getErrorCode(), model.getServiceTaskId(), e.getMessage());
-            completeData.setStatus(ServiceTaskResultStatus.BPMN_ERROR);
-            completeData.setErrorCode(e.getErrorCode());
-            completeData.setMessage(e.getMessage());
-            completeData.setVariables(toVariables(e.getVariables()));
-        } catch (Exception e) {
-            log.error("Job {} failed for service task {}", handler.getJob(), model.getServiceTaskId(), e);
-            JobFailedException failed = e instanceof JobFailedException jobFailed ? jobFailed : null;
-            ErrorReport report = ErrorReport.of(e, failed != null ? failed.getErrorCode() : null);
-            completeData.setStatus(ServiceTaskResultStatus.FAILURE);
-            completeData.setMessage(report.getMessage());
-            completeData.setErrorCode(report.getErrorCode());
-            completeData.setDetails(report.getDetails());
-            if (failed != null) {
-                completeData.setRetries(failed.getRetries());
-                completeData.setRetryTimeout(failed.getRetryTimeout() != null ? failed.getRetryTimeout().toString() : null);
-            }
-            completeData.setVariables(List.of());
-        }
-        return completeData;
-    }
-
-    private static List<ProcessVariable> toVariables(List<ProcessVariable> variables) {
-        return variables.stream().map(x -> {
-            ProcessVariable v = new ProcessVariable();
-            v.setName(x.getName());
-            v.setValue(x.getValue());
-            v.setType(x.getType().toString());
-            return v;
-        }).toList();
+        return JobExecution.handle(handler, model);
     }
 }
