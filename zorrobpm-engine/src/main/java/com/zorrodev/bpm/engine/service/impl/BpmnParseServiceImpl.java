@@ -1,6 +1,7 @@
 package com.zorrodev.bpm.engine.service.impl;
 
 import com.zorrodev.bpm.contract.exception.BpmnParseException;
+import com.zorrodev.bpm.engine.bpmn.model.BoundaryEventExtensionModel;
 import com.zorrodev.bpm.engine.bpmn.model.CallActivityExtensionModel;
 import com.zorrodev.bpm.engine.bpmn.model.TimerEventExtensionModel;
 import com.zorrodev.bpm.engine.bpmn.model.TimerEventType;
@@ -19,10 +20,12 @@ import com.zorrodev.bpm.engine.bpmn.model.ServiceTaskExtensionModel;
 import com.zorrodev.bpm.engine.service.BpmnParseService;
 import jakarta.xml.bind.JAXB;
 import org.springframework.stereotype.Service;
+import org.w3c.dom.Element;
 
 import java.io.StringReader;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 public class BpmnParseServiceImpl implements BpmnParseService {
@@ -121,7 +124,18 @@ public class BpmnParseServiceImpl implements BpmnParseService {
                 }
             }
 
+            if (process.getBoundaryEvents() != null) {
+                for (BpmnBoundaryEventModel boundaryEvent : process.getBoundaryEvents()) {
+                    checkBoundaryEvent(boundaryEvent, pd);
+                    BpmnElementModel element = toElementModel(boundaryEvent);
+                    element.setProcessDefinition(pd);
+                    pd.addElement(element);
+                }
+            }
+
             return pd;
+        } catch (BpmnParseException e) {
+            throw e;
         } catch (Exception e) {
             throw new BpmnParseException(e);
         }
@@ -155,6 +169,80 @@ public class BpmnParseServiceImpl implements BpmnParseService {
         if (Optional.ofNullable(process.getEndEvents()).isEmpty()) {
             throw new BpmnParseException("No end events in the process definition xml");
         }
+    }
+
+    private static final Set<BpmnElementType> BOUNDARY_HOST_TYPES = Set.of(
+        BpmnElementType.USER_TASK, BpmnElementType.SERVICE_TASK, BpmnElementType.CALL_ACTIVITY);
+
+    /**
+     * Only timer boundary events on user tasks, service tasks and call activities are executable;
+     * anything else is rejected instead of being silently dropped. Runs after all other elements
+     * are in the model, because the host's type is needed.
+     */
+    private void checkBoundaryEvent(BpmnBoundaryEventModel boundaryEvent, com.zorrodev.bpm.engine.bpmn.model.BpmnProcessDefinitionModel pd) {
+        String id = boundaryEvent.getId();
+        BpmnTimerEventDefinitionModel timer = boundaryEvent.getTimerEventDefinition();
+        boolean otherDefinition = Optional.ofNullable(boundaryEvent.getOtherElements()).orElse(List.of()).stream()
+            .filter(Element.class::isInstance)
+            .map(Element.class::cast)
+            .anyMatch(e -> e.getLocalName() != null && e.getLocalName().endsWith("EventDefinition"));
+        if (timer == null || otherDefinition) {
+            throw new BpmnParseException("Boundary event '" + id + "': only timer boundary events are supported");
+        }
+        String attachedTo = boundaryEvent.getAttachedToRef();
+        BpmnElementModel host = attachedTo == null ? null : pd.getElement(attachedTo);
+        if (host == null) {
+            throw new BpmnParseException("Boundary event '" + id + "': attached element '" + attachedTo + "' does not exist");
+        }
+        if (!BOUNDARY_HOST_TYPES.contains(host.getType())) {
+            throw new BpmnParseException("Boundary event '" + id + "': timer boundary events are supported only on user tasks, service tasks and call activities, not on " + host.getType() + " '" + attachedTo + "'");
+        }
+        if (boundaryEvent.getOutgoing() == null || boundaryEvent.getOutgoing().isEmpty()) {
+            throw new BpmnParseException("Boundary event '" + id + "': no outgoing sequence flow");
+        }
+        if (isBlank(timer.getTimeDate()) && isBlank(timer.getTimeDuration()) && isBlank(timer.getTimeCycle())) {
+            throw new BpmnParseException("Boundary event '" + id + "': timer has no timeDate, timeDuration or timeCycle");
+        }
+        boolean interrupting = !Boolean.FALSE.equals(boundaryEvent.getCancelActivity());
+        if (interrupting && !isBlank(timer.getTimeCycle())) {
+            throw new BpmnParseException("Boundary event '" + id + "': timeCycle is supported only on non-interrupting timers");
+        }
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    private static TimerEventExtensionModel toTimerExtension(BpmnTimerEventDefinitionModel definition) {
+        TimerEventExtensionModel timer = new TimerEventExtensionModel();
+        if (!isBlank(definition.getTimeDate())) {
+            timer.setType(TimerEventType.DATE);
+            timer.setExpression(definition.getTimeDate().trim());
+        } else if (!isBlank(definition.getTimeDuration())) {
+            timer.setType(TimerEventType.DURATION);
+            timer.setExpression(definition.getTimeDuration().trim());
+        } else if (!isBlank(definition.getTimeCycle())) {
+            timer.setType(TimerEventType.CYCLE);
+            timer.setExpression(definition.getTimeCycle().trim());
+        }
+        return timer;
+    }
+
+    private BpmnElementModel toElementModel(BpmnBoundaryEventModel boundaryEvent) {
+        BpmnElementModel element = new BpmnElementModel();
+        element.setId(boundaryEvent.getId());
+        element.setName(boundaryEvent.getName());
+        element.setType(BpmnElementType.TIMER_BOUNDARY_EVENT);
+        element.setOutgoing(boundaryEvent.getOutgoing());
+
+        BoundaryEventExtensionModel boundary = new BoundaryEventExtensionModel();
+        boundary.setAttachedTo(boundaryEvent.getAttachedToRef());
+        boundary.setCancelActivity(!Boolean.FALSE.equals(boundaryEvent.getCancelActivity()));
+
+        element.setExtensions(new BpmnElementExtensionModel());
+        element.getExtensions().setBoundaryEventExtension(boundary);
+        element.getExtensions().setTimerEventExtension(toTimerExtension(boundaryEvent.getTimerEventDefinition()));
+        return element;
     }
 
     private BpmnElementModel toElementModel(BpmnServiceTaskModel serviceTask) {
@@ -294,15 +382,7 @@ public class BpmnParseServiceImpl implements BpmnParseService {
 
         if (catchEvent.getTimerEventDefinition() != null) {
             element.setExtensions(new BpmnElementExtensionModel());
-            TimerEventExtensionModel timer = new TimerEventExtensionModel();
-
-            if (catchEvent.getTimerEventDefinition().getTimeDate() != null) {
-                timer.setType(TimerEventType.DATE);
-            } else if (catchEvent.getTimerEventDefinition().getTimeDuration() != null) {
-                timer.setType(TimerEventType.DURATION);
-            }
-
-            element.getExtensions().setTimerEventExtension(timer);
+            element.getExtensions().setTimerEventExtension(toTimerExtension(catchEvent.getTimerEventDefinition()));
         }
 
         return element;

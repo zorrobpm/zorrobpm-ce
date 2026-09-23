@@ -14,4 +14,5 @@ public class BpmnElementExtensionModel {
     private MessageEventExtensionModel messageEventExtension;
     private CallActivityExtensionModel callActivityExtension;
     private MultiInstanceExtensionModel multiInstanceExtension;
+    private BoundaryEventExtensionModel boundaryEventExtension;
 }

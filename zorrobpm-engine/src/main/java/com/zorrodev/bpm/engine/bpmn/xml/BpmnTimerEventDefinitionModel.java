@@ -19,4 +19,7 @@ public class BpmnTimerEventDefinitionModel {
 
     @XmlElement(name = "timeDuration", namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL")
     private String timeDuration;
+
+    @XmlElement(name = "timeCycle", namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL")
+    private String timeCycle;
 }

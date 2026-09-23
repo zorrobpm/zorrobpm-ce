@@ -39,4 +39,6 @@ public class BpmnProcessDefinitionModel {
     private List<BpmnIntermediateThrowEventModel> intermediateThrowEvents;
     @XmlElement(name = "callActivity", namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL")
     private List<BpmnCallActivityModel> callActivities;
+    @XmlElement(name = "boundaryEvent", namespace = "http://www.omg.org/spec/BPMN/20100524/MODEL")
+    private List<BpmnBoundaryEventModel> boundaryEvents;
 }

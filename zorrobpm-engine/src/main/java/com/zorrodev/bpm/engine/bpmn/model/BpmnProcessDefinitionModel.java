@@ -3,6 +3,7 @@ package com.zorrodev.bpm.engine.bpmn.model;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -52,6 +53,17 @@ public class BpmnProcessDefinitionModel {
 
     public List<BpmnFlowModel> getFlows() {
         return flows.values().stream().toList();
+    }
+
+    /**
+     * Boundary events attached to the given host element.
+     */
+    public List<BpmnElementModel> getBoundaryEvents(String hostElementId) {
+        return elements.values().stream()
+            .filter(e -> e.getType() == BpmnElementType.TIMER_BOUNDARY_EVENT)
+            .filter(e -> hostElementId.equals(e.getExtensions().getBoundaryEventExtension().getAttachedTo()))
+            .sorted(Comparator.comparing(BpmnElementModel::getId))
+            .toList();
     }
 
     public List<BpmnElementModel> getMessageStartEvents() {
