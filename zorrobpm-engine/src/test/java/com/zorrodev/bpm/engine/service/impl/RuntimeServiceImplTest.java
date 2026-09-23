@@ -115,6 +115,17 @@ class RuntimeServiceImplTest {
     }
 
     @Test
+    void failServiceTask_delegatesAndReturnsIncidentId() {
+        UUID id = UUID.randomUUID();
+        UUID incidentId = UUID.randomUUID();
+        when(activityService.failServiceTask(id, "boom")).thenReturn(incidentId);
+
+        IdDTO result = runtimeService.failServiceTask(id, "boom");
+
+        assertThat(result.getId()).isEqualTo(incidentId);
+    }
+
+    @Test
     void completeUserTask_delegatesAndReturnsId() {
         UUID id = UUID.randomUUID();
         List<ProcessVariable> vars = List.of();

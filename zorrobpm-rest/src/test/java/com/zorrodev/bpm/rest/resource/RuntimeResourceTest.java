@@ -2,6 +2,7 @@ package com.zorrodev.bpm.rest.resource;
 
 import com.zorrodev.bpm.contract.dto.ClaimTaskDTO;
 import com.zorrodev.bpm.contract.dto.CompleteTaskDTO;
+import com.zorrodev.bpm.contract.dto.FailServiceTaskDTO;
 import com.zorrodev.bpm.contract.dto.IdDTO;
 import com.zorrodev.bpm.contract.dto.ResolveIncidentDTO;
 import com.zorrodev.bpm.contract.dto.StartProcessInstanceDTO;
@@ -61,6 +62,38 @@ class RuntimeResourceTest {
 
         assertThat(result.getId()).isSameAs(expected.getId());
         verify(runtimeService).completeServiceTask(id, vars);
+    }
+
+    @Test
+    void failServiceTask_delegatesToServiceAndReturnsIncidentId() {
+        UUID id = UUID.randomUUID();
+        FailServiceTaskDTO dto = new FailServiceTaskDTO();
+        dto.setMessage("card declined");
+        IdDTO expected = new IdDTO(UUID.randomUUID());
+        when(runtimeService.failServiceTask(id, "card declined")).thenReturn(toEngineDTO(expected));
+
+        IdDTO result = resource.failServiceTask(id, dto);
+
+        assertThat(result.getId()).isSameAs(expected.getId());
+        verify(runtimeService).failServiceTask(id, "card declined");
+    }
+
+    @Test
+    void failServiceTask_blankMessage_returnsBadRequest() {
+        FailServiceTaskDTO dto = new FailServiceTaskDTO();
+        dto.setMessage(" ");
+
+        assertThatThrownBy(() -> resource.failServiceTask(UUID.randomUUID(), dto))
+            .isInstanceOf(ResponseStatusException.class)
+            .satisfies(e -> assertThat(((ResponseStatusException) e).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+    }
+
+    @Test
+    void failServiceTask_nullMessage_returnsBadRequest() {
+        FailServiceTaskDTO dto = new FailServiceTaskDTO();
+
+        assertThatThrownBy(() -> resource.failServiceTask(UUID.randomUUID(), dto))
+            .isInstanceOf(ResponseStatusException.class);
     }
 
     @Test

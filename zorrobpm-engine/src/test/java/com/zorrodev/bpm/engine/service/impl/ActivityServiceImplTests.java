@@ -3,6 +3,8 @@ package com.zorrodev.bpm.engine.service.impl;
 import com.zorrodev.bpm.contract.dto.Incident;
 import com.zorrodev.bpm.contract.exception.IncidentAlreadyResolvedException;
 import com.zorrodev.bpm.contract.exception.IncidentNotFoundException;
+import com.zorrodev.bpm.contract.exception.ServiceTaskNotFoundException;
+import com.zorrodev.bpm.contract.exception.TaskNotActiveException;
 import com.zorrodev.bpm.contract.model.ProcessDefinition;
 import com.zorrodev.bpm.contract.model.ProcessVariable;
 import com.zorrodev.bpm.contract.model.ProcessInstance;
@@ -441,11 +443,15 @@ public class ActivityServiceImplTests {
     @Test
     public void failServiceTask_createsIncidentAndMarksActivityError() {
         UUID serviceTaskId = UUID.randomUUID();
+        UUID incidentId = UUID.randomUUID();
+        when(dbService.hasServiceTask(serviceTaskId)).thenReturn(true);
         when(dbService.getActivityForUpdate(serviceTaskId)).thenReturn(serviceTaskActivity(serviceTaskId, ActivityStatus.CREATED, null));
-        when(dbService.createIncident(serviceTaskId, "boom")).thenReturn(UUID.randomUUID());
+        when(dbService.findOpenIncidentId(serviceTaskId)).thenReturn(Optional.empty());
+        when(dbService.createIncident(serviceTaskId, "boom")).thenReturn(incidentId);
 
-        activityService.failServiceTask(serviceTaskId, "boom");
+        UUID result = activityService.failServiceTask(serviceTaskId, "boom");
 
+        assertThat(result).isEqualTo(incidentId);
         verify(dbService).createIncident(serviceTaskId, "boom");
         verify(dbService).setActivityStatus(serviceTaskId, ActivityStatus.ERROR);
         verify(dbService, never()).completeServiceTask(any());
@@ -453,25 +459,43 @@ public class ActivityServiceImplTests {
     }
 
     @Test
-    public void failServiceTask_ignoresRepeatedFailure() {
+    public void failServiceTask_returnsOpenIncidentOnRepeatedFailure() {
         UUID serviceTaskId = UUID.randomUUID();
+        UUID openIncidentId = UUID.randomUUID();
+        when(dbService.hasServiceTask(serviceTaskId)).thenReturn(true);
         when(dbService.getActivityForUpdate(serviceTaskId)).thenReturn(serviceTaskActivity(serviceTaskId, ActivityStatus.ERROR, null));
+        when(dbService.findOpenIncidentId(serviceTaskId)).thenReturn(Optional.of(openIncidentId));
 
-        activityService.failServiceTask(serviceTaskId, "boom");
+        UUID result = activityService.failServiceTask(serviceTaskId, "boom again");
+
+        assertThat(result).isEqualTo(openIncidentId);
+        verify(dbService, never()).createIncident(any(), any());
+        verify(dbService, never()).setActivityStatus(any(), any());
+    }
+
+    @Test
+    public void failServiceTask_rejectsCompletedServiceTask() {
+        UUID serviceTaskId = UUID.randomUUID();
+        when(dbService.hasServiceTask(serviceTaskId)).thenReturn(true);
+        when(dbService.getActivityForUpdate(serviceTaskId)).thenReturn(serviceTaskActivity(serviceTaskId, ActivityStatus.COMPLETED, Instant.now()));
+
+        assertThatThrownBy(() -> activityService.failServiceTask(serviceTaskId, "boom"))
+            .isInstanceOf(TaskNotActiveException.class);
 
         verify(dbService, never()).createIncident(any(), any());
         verify(dbService, never()).setActivityStatus(any(), any());
     }
 
     @Test
-    public void failServiceTask_ignoresCompletedServiceTask() {
-        UUID serviceTaskId = UUID.randomUUID();
-        when(dbService.getActivityForUpdate(serviceTaskId)).thenReturn(serviceTaskActivity(serviceTaskId, ActivityStatus.COMPLETED, Instant.now()));
+    public void failServiceTask_rejectsIdWithoutServiceTask() {
+        UUID unknownOrUserTaskId = UUID.randomUUID();
+        when(dbService.hasServiceTask(unknownOrUserTaskId)).thenReturn(false);
 
-        activityService.failServiceTask(serviceTaskId, "boom");
+        assertThatThrownBy(() -> activityService.failServiceTask(unknownOrUserTaskId, "boom"))
+            .isInstanceOf(ServiceTaskNotFoundException.class);
 
+        verify(dbService, never()).getActivityForUpdate(any());
         verify(dbService, never()).createIncident(any(), any());
-        verify(dbService, never()).setActivityStatus(any(), any());
     }
 
     private static Activity serviceTaskActivity(UUID id, ActivityStatus status, Instant completedAt) {

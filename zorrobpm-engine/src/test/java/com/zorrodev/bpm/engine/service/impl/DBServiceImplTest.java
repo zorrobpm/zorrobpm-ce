@@ -833,6 +833,24 @@ class DBServiceImplTest {
     }
 
     @Test
+    void findOpenIncidentId_returnsIdOfOpenIncident() {
+        UUID activityId = UUID.randomUUID();
+        IncidentEntity incident = new IncidentEntity();
+        incident.setId(UUID.randomUUID());
+        when(incidentRepository.findByActivityIdAndCompletedAtIsNull(activityId)).thenReturn(List.of(incident));
+
+        assertThat(dbService.findOpenIncidentId(activityId)).contains(incident.getId());
+    }
+
+    @Test
+    void findOpenIncidentId_isEmptyWhenNoIncidentIsOpen() {
+        UUID activityId = UUID.randomUUID();
+        when(incidentRepository.findByActivityIdAndCompletedAtIsNull(activityId)).thenReturn(List.of());
+
+        assertThat(dbService.findOpenIncidentId(activityId)).isEmpty();
+    }
+
+    @Test
     void setActivityStatus_updatesStatus() {
         UUID activityId = UUID.randomUUID();
         dbService.setActivityStatus(activityId, ActivityStatus.ERROR);

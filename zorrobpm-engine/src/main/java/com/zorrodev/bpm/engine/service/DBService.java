@@ -84,6 +84,8 @@ public interface DBService {
 
     boolean hasOpenIncident(UUID activityId);
 
+    Optional<UUID> findOpenIncidentId(UUID activityId);
+
     void setActivityStatus(UUID activityId, ActivityStatus status);
 
     void terminateActivity(UUID activityId);

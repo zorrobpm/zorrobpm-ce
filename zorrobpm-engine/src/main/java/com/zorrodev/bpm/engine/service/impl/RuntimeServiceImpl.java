@@ -58,6 +58,13 @@ public class RuntimeServiceImpl implements RuntimeService {
     }
 
     @Override
+    public IdDTO failServiceTask(UUID id, String message) {
+        IdDTO result = new IdDTO();
+        result.setId(activityService.failServiceTask(id, message));
+        return result;
+    }
+
+    @Override
     public IdDTO completeUserTask(UUID id, List<ProcessVariable> variables) {
         activityService.completeUserTask(id, variables);
         IdDTO result = new IdDTO();

@@ -13,6 +13,7 @@ import com.zorrodev.bpm.engine.entity.ProcessInstanceEntity;
 import com.zorrodev.bpm.engine.entity.TimerEntity;
 import com.zorrodev.bpm.engine.entity.TimerStatus;
 import com.zorrodev.bpm.engine.listener.ServiceTaskCompleteListener;
+import com.zorrodev.bpm.engine.listener.ServiceTaskFailedListener;
 import com.zorrodev.bpm.engine.repository.ActivityRepository;
 import com.zorrodev.bpm.engine.repository.IncidentRepository;
 import com.zorrodev.bpm.engine.repository.ProcessInstanceRepository;
@@ -25,6 +26,7 @@ import com.zorrodev.bpm.engine.service.RuntimeService;
 import com.zorrodev.bpm.engine.service.TimerJobService;
 import com.zorrodev.bpm.engine.test.MutableClock;
 import com.zorrodev.bpm.exchange.ServiceTaskCompleted;
+import com.zorrodev.bpm.exchange.ServiceTaskFailed;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -68,6 +70,9 @@ public class BoundaryTimerIntegrationTests {
 
     @Autowired
     private ServiceTaskCompleteListener serviceTaskCompleteListener;
+
+    @Autowired
+    private ServiceTaskFailedListener serviceTaskFailedListener;
 
     @Autowired
     private ActivityRepository activityRepository;
@@ -291,7 +296,10 @@ public class BoundaryTimerIntegrationTests {
         completed.setServiceTaskId(chargeId);
         completed.setVariables(List.of());
         serviceTaskCompleteListener.on(completed);
-        inTx(() -> activityService.failServiceTask(chargeId, "too late"));
+        ServiceTaskFailed failed = new ServiceTaskFailed();
+        failed.setServiceTaskId(chargeId);
+        failed.setMessage("too late");
+        serviceTaskFailedListener.on(failed);
 
         assertThat(activities(instance, "done")).isEmpty();
         assertThat(incidents(chargeId)).isEmpty();
