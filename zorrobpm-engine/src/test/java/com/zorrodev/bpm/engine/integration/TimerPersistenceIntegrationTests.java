@@ -114,7 +114,7 @@ public class TimerPersistenceIntegrationTests {
 
     @Test
     void cancelsOnlyScheduledTimersOfTheActivity() {
-        Instant dueAt = Instant.now().plus(1, ChronoUnit.DAYS);
+        Instant dueAt = Instant.now().plus(1, ChronoUnit.DAYS).truncatedTo(ChronoUnit.MILLIS);
         UUID activityId = inTx(this::createActivity);
         UUID otherActivityId = inTx(this::createActivity);
         UUID processInstanceId = activityRepository.findById(activityId).orElseThrow().getProcessInstanceId();
@@ -138,7 +138,7 @@ public class TimerPersistenceIntegrationTests {
 
     @Test
     void reschedulesTimer() {
-        Instant dueAt = Instant.now().plus(1, ChronoUnit.DAYS);
+        Instant dueAt = Instant.now().plus(1, ChronoUnit.DAYS).truncatedTo(ChronoUnit.MILLIS);
         UUID activityId = inTx(this::createActivity);
         UUID processInstanceId = activityRepository.findById(activityId).orElseThrow().getProcessInstanceId();
         UUID timerId = inTx(() -> dbService.createTimer(processInstanceId, activityId, "a", new TimerSchedule(dueAt, "PT1H", 2)));
