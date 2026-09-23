@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_boundary_child_nested" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="boundary-child-nested" name="Child that calls another child" isExecutable="true">
+    <bpmn:startEvent id="nestedStart">
+      <bpmn:outgoing>toInnerCall</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:callActivity id="innerCall" name="Inner call">
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="boundary-child" propagateAllChildVariables="false" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>toInnerCall</bpmn:incoming>
+      <bpmn:outgoing>toNestedEnd</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:endEvent id="nestedEnd">
+      <bpmn:incoming>toNestedEnd</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="toInnerCall" sourceRef="nestedStart" targetRef="innerCall" />
+    <bpmn:sequenceFlow id="toNestedEnd" sourceRef="innerCall" targetRef="nestedEnd" />
+  </bpmn:process>
+</bpmn:definitions>

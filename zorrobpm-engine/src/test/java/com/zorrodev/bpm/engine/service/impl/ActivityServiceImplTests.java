@@ -18,6 +18,7 @@ import com.zorrodev.bpm.engine.service.BpmnService;
 import com.zorrodev.bpm.engine.service.DBService;
 import com.zorrodev.bpm.engine.service.ScriptService;
 import com.zorrodev.bpm.engine.service.ServiceTaskEnqueueService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -41,6 +42,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -65,6 +67,17 @@ public class ActivityServiceImplTests {
 
     @InjectMocks
     private ActivityServiceImpl activityService;
+
+    @BeforeEach
+    void stubLocksAndLookups() {
+        // The locked read returns what the test stubbed for the plain read.
+        lenient().when(dbService.getProcessInstanceForUpdate(any())).thenAnswer(invocation -> {
+            ProcessInstance instance = dbService.getProcessInstance(invocation.getArgument(0));
+            return instance != null ? instance : new ProcessInstance();
+        });
+        lenient().when(dbService.findParentActivityId(any())).thenReturn(Optional.empty());
+        lenient().when(dbService.hasServiceTask(any())).thenReturn(true);
+    }
 
     @Test
     public void test1() throws IOException {
@@ -157,7 +170,7 @@ public class ActivityServiceImplTests {
 
         when(bpmnService.getProcessDefinitionModelById(processDefinitionId)).thenReturn(bpmn);
         when(dbService.getProcessInstance(processInstanceId)).thenReturn(pi);
-        when(dbService.getActivity(serviceTaskId)).thenReturn(activity);
+        when(dbService.getActivityForUpdate(serviceTaskId)).thenReturn(activity);
         when(dbService.createActivity(processInstanceId, token, bpmn.getElement("startEvent"))).thenReturn(UUID.randomUUID());
         when(dbService.createActivity(processInstanceId, token, bpmn.getElement("endEvent"))).thenReturn(UUID.randomUUID());
         when(dbService.createActivity(processInstanceId, token, bpmn.getElement("serviceTask1"))).thenReturn(serviceTaskId);
@@ -201,7 +214,7 @@ public class ActivityServiceImplTests {
 
         when(bpmnService.getProcessDefinitionModelById(processDefinitionId)).thenReturn(bpmn);
         when(dbService.getProcessInstance(processInstanceId)).thenReturn(pi);
-        when(dbService.getActivity(userTaskId)).thenReturn(activity);
+        when(dbService.getActivityForUpdate(userTaskId)).thenReturn(activity);
         when(dbService.createActivity(processInstanceId, token, bpmn.getElement("startEvent"))).thenReturn(UUID.randomUUID());
         when(dbService.createActivity(processInstanceId, token, bpmn.getElement("endEvent"))).thenReturn(UUID.randomUUID());
         when(dbService.createActivity(processInstanceId, token, bpmn.getElement("userTask1"))).thenReturn(userTaskId);
@@ -407,6 +420,7 @@ public class ActivityServiceImplTests {
         when(dbService.createActivity(eq(dummyProcessInstanceId), any(UUID.class), eq(dummyBpmn.getElement("endEvent")))).thenReturn(UUID.randomUUID());
         when(dbService.createActivity(eq(dummyProcessInstanceId), any(UUID.class), eq(dummyBpmn.getFlow("flow1")))).thenReturn(UUID.randomUUID());
         when(dbService.getActivity(callActivityId)).thenReturn(callActivity);
+        lenient().when(dbService.getActivityForUpdate(callActivityId)).thenReturn(callActivity);
         when(dbService.createToken(isNull())).thenReturn(token1);
         when(dbService.createToken(eq(token1.getId()))).thenReturn(token2);
         when(dbService.getToken(eq(token1.getId()))).thenReturn(token1);
@@ -631,7 +645,7 @@ public class ActivityServiceImplTests {
         pi.setId(processInstanceId);
         pi.setProcessDefinitionId(processDefinitionId);
 
-        when(dbService.getActivity(serviceTaskId)).thenReturn(activity);
+        when(dbService.getActivityForUpdate(serviceTaskId)).thenReturn(activity);
         when(dbService.getProcessInstance(processInstanceId)).thenReturn(pi);
         when(bpmnService.getProcessDefinitionModelById(processDefinitionId)).thenReturn(bpmn);
         when(dbService.createActivity(processInstanceId, token, bpmn.getFlow("flow2"))).thenReturn(UUID.randomUUID());

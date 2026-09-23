@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_interrupting_user_task" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="boundary-interrupting-user-task" name="Interrupting timer on a user task" isExecutable="true">
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>toApprove</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="approve" name="Approve">
+      <bpmn:incoming>toApprove</bpmn:incoming>
+      <bpmn:outgoing>toDone</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="done">
+      <bpmn:incoming>toDone</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:boundaryEvent id="escalateTimer" name="1 hour" attachedToRef="approve">
+      <bpmn:outgoing>toEscalate</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT1H</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="giveUpTimer" name="2 hours" attachedToRef="approve">
+      <bpmn:outgoing>toGiveUp</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT2H</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:userTask id="escalate" name="Escalate">
+      <bpmn:incoming>toEscalate</bpmn:incoming>
+      <bpmn:outgoing>toEscalated</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="escalated">
+      <bpmn:incoming>toEscalated</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="gaveUp">
+      <bpmn:incoming>toGiveUp</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="toApprove" sourceRef="start" targetRef="approve" />
+    <bpmn:sequenceFlow id="toDone" sourceRef="approve" targetRef="done" />
+    <bpmn:sequenceFlow id="toEscalate" sourceRef="escalateTimer" targetRef="escalate" />
+    <bpmn:sequenceFlow id="toEscalated" sourceRef="escalate" targetRef="escalated" />
+    <bpmn:sequenceFlow id="toGiveUp" sourceRef="giveUpTimer" targetRef="gaveUp" />
+  </bpmn:process>
+</bpmn:definitions>

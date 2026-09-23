@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_boundary_parse" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="boundary-parse" name="Boundary Parse" isExecutable="true">
+    <bpmn:startEvent id="startEvent">
+      <bpmn:outgoing>flow1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="approve" name="Approve">
+      <bpmn:incoming>flow1</bpmn:incoming>
+      <bpmn:outgoing>flow2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="charge" name="Charge">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="charge" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow2</bpmn:incoming>
+      <bpmn:outgoing>flow3</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:callActivity id="call" name="Call">
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="child" propagateAllChildVariables="false" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow3</bpmn:incoming>
+      <bpmn:outgoing>flow4</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:endEvent id="endEvent">
+      <bpmn:incoming>flow4</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="timeoutEnd">
+      <bpmn:incoming>flowTimeout</bpmn:incoming>
+      <bpmn:incoming>flowRemind</bpmn:incoming>
+      <bpmn:incoming>flowDeadline</bpmn:incoming>
+      <bpmn:incoming>flowCall</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:boundaryEvent id="approveTimeout" name="1 hour" attachedToRef="approve">
+      <bpmn:outgoing>flowTimeout</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerEventDefinition_1">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT1H</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="approveRemind" name="Remind" cancelActivity="false" attachedToRef="approve">
+      <bpmn:outgoing>flowRemind</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerEventDefinition_2">
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R3/PT10M</bpmn:timeCycle>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="chargeDeadline" attachedToRef="charge">
+      <bpmn:outgoing>flowDeadline</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerEventDefinition_3">
+        <bpmn:timeDate xsi:type="bpmn:tFormalExpression">2026-10-01T09:00:00+05:00</bpmn:timeDate>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="callTimeout" attachedToRef="call">
+      <bpmn:outgoing>flowCall</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerEventDefinition_4">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">=duration("PT" + string(minutes) + "M")</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:sequenceFlow id="flow1" sourceRef="startEvent" targetRef="approve" />
+    <bpmn:sequenceFlow id="flow2" sourceRef="approve" targetRef="charge" />
+    <bpmn:sequenceFlow id="flow3" sourceRef="charge" targetRef="call" />
+    <bpmn:sequenceFlow id="flow4" sourceRef="call" targetRef="endEvent" />
+    <bpmn:sequenceFlow id="flowTimeout" sourceRef="approveTimeout" targetRef="timeoutEnd" />
+    <bpmn:sequenceFlow id="flowRemind" sourceRef="approveRemind" targetRef="timeoutEnd" />
+    <bpmn:sequenceFlow id="flowDeadline" sourceRef="chargeDeadline" targetRef="timeoutEnd" />
+    <bpmn:sequenceFlow id="flowCall" sourceRef="callTimeout" targetRef="timeoutEnd" />
+  </bpmn:process>
+</bpmn:definitions>

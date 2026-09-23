@@ -1,0 +1,17 @@
+databaseChangeLog:
+  - logicalFilePath: 20260923-028
+  - changeSet:
+      id: 20260923-028
+      author: zorrodev
+      comment: >
+        An end event now completes the instance only when no open activities remain, so every end
+        event counts the open activities of its instance. There was no index on process_instance_id.
+      changes:
+        - createIndex:
+            tableName: activities
+            indexName: ix_activities__process_instance_id_completed_at
+            columns:
+              - column:
+                  name: process_instance_id
+              - column:
+                  name: completed_at

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_boundary_assignment_error" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="boundary-assignment-error" name="Timer on a user task whose assignment fails" isExecutable="true">
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>toApprove</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="approve" name="Approve">
+      <bpmn:extensionElements>
+        <zeebe:assignmentDefinition assignee="=approver" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>toApprove</bpmn:incoming>
+      <bpmn:outgoing>toDone</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="done">
+      <bpmn:incoming>toDone</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:boundaryEvent id="approveTimeout" name="1 hour" attachedToRef="approve">
+      <bpmn:outgoing>toTimedOut</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT1H</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:endEvent id="timedOut">
+      <bpmn:incoming>toTimedOut</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="toApprove" sourceRef="start" targetRef="approve" />
+    <bpmn:sequenceFlow id="toDone" sourceRef="approve" targetRef="done" />
+    <bpmn:sequenceFlow id="toTimedOut" sourceRef="approveTimeout" targetRef="timedOut" />
+  </bpmn:process>
+</bpmn:definitions>

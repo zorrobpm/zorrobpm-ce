@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_non_interrupting_user_task" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="boundary-non-interrupting-user-task" name="Reminder on a user task" isExecutable="true">
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>toApprove</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="approve" name="Approve">
+      <bpmn:incoming>toApprove</bpmn:incoming>
+      <bpmn:outgoing>toDone</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="done">
+      <bpmn:incoming>toDone</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:boundaryEvent id="remindTimer" name="1 hour" cancelActivity="false" attachedToRef="approve">
+      <bpmn:outgoing>toRemind</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT1H</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:serviceTask id="remind" name="Remind">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="remind" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>toRemind</bpmn:incoming>
+      <bpmn:outgoing>toReminded</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="reminded">
+      <bpmn:incoming>toReminded</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="toApprove" sourceRef="start" targetRef="approve" />
+    <bpmn:sequenceFlow id="toDone" sourceRef="approve" targetRef="done" />
+    <bpmn:sequenceFlow id="toRemind" sourceRef="remindTimer" targetRef="remind" />
+    <bpmn:sequenceFlow id="toReminded" sourceRef="remind" targetRef="reminded" />
+  </bpmn:process>
+</bpmn:definitions>

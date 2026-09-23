@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_boundary_multi_instance" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="boundary-multi-instance" name="Timer on a multi-instance user task" isExecutable="true">
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>toReview</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="review" name="Review">
+      <bpmn:incoming>toReview</bpmn:incoming>
+      <bpmn:outgoing>toDone</bpmn:outgoing>
+      <bpmn:multiInstanceLoopCharacteristics>
+        <bpmn:extensionElements>
+          <zeebe:loopCharacteristics inputCollection="=items" inputElement="item" />
+        </bpmn:extensionElements>
+      </bpmn:multiInstanceLoopCharacteristics>
+    </bpmn:userTask>
+    <bpmn:endEvent id="done">
+      <bpmn:incoming>toDone</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:boundaryEvent id="reviewTimeout" name="1 hour" attachedToRef="review">
+      <bpmn:outgoing>toTimedOut</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT1H</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:endEvent id="timedOut">
+      <bpmn:incoming>toTimedOut</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="toReview" sourceRef="start" targetRef="review" />
+    <bpmn:sequenceFlow id="toDone" sourceRef="review" targetRef="done" />
+    <bpmn:sequenceFlow id="toTimedOut" sourceRef="reviewTimeout" targetRef="timedOut" />
+  </bpmn:process>
+</bpmn:definitions>
