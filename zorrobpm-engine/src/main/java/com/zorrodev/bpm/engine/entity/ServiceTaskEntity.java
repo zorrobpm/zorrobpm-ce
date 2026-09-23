@@ -30,4 +30,8 @@ public class ServiceTaskEntity {
     /** Code and text of the error the last retry was scheduled for. */
     private String lastErrorCode;
     private String lastErrorMessage;
+    /** Until when the job is locked for the gRPC subscription that got it; null when it is not locked. */
+    private Instant lockedUntil;
+    /** The gRPC subscription holding the lock. */
+    private String lockedBy;
 }

@@ -50,12 +50,14 @@ import com.zorrodev.bpm.event.UserTaskInstanceCreatedEvent;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.NonNull;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -573,6 +575,9 @@ public class DBServiceImpl implements DBService {
     public void clearNextRetryAt(UUID serviceTaskId) {
         ServiceTaskEntity entity = serviceTaskRepository.findById(serviceTaskId).orElseThrow();
         entity.setNextRetryAt(null);
+        // The job is handed out afresh: a lock left from the failed attempt must not delay it.
+        entity.setLockedUntil(null);
+        entity.setLockedBy(null);
         serviceTaskRepository.save(entity);
     }
 
@@ -580,7 +585,38 @@ public class DBServiceImpl implements DBService {
     public void setServiceTaskRetries(UUID serviceTaskId, int retries) {
         ServiceTaskEntity entity = serviceTaskRepository.findById(serviceTaskId).orElseThrow();
         entity.setRetries(retries);
+        // Called when an incident is resolved: the job is handed out afresh.
+        entity.setLockedUntil(null);
+        entity.setLockedBy(null);
         serviceTaskRepository.save(entity);
+    }
+
+    @Override
+    public List<UUID> findReadyServiceTaskJobs(Collection<String> jobs, int limit) {
+        if (jobs.isEmpty() || limit <= 0) {
+            return List.of();
+        }
+        return serviceTaskRepository.findReadyJobs(List.copyOf(jobs), clock.instant(), Limit.of(limit));
+    }
+
+    @Override
+    public boolean lockServiceTaskJob(UUID serviceTaskId, String owner, Instant until) {
+        return serviceTaskRepository.tryLock(serviceTaskId, owner, clock.instant(), until) == 1;
+    }
+
+    @Override
+    public void releaseServiceTaskLock(UUID serviceTaskId) {
+        serviceTaskRepository.releaseLock(serviceTaskId);
+    }
+
+    @Override
+    public void releaseServiceTaskLock(UUID serviceTaskId, String owner) {
+        serviceTaskRepository.releaseLock(serviceTaskId, owner);
+    }
+
+    @Override
+    public int releaseServiceTaskLocks(String owner) {
+        return serviceTaskRepository.releaseLocks(owner);
     }
 
     @Override

@@ -10,10 +10,10 @@
     </parent>
 
     <groupId>com.zorrodev.bpm</groupId>
-    <artifactId>zorrobpm-rabbitmq</artifactId>
-    <version>0.7.27-SNAPSHOT</version>
+    <artifactId>zorrobpm-engine</artifactId>
+    <version>0.7.26-SNAPSHOT</version>
 
-    <name>zorrobpm-rabbitmq</name>
+    <name>zorrobpm-engine</name>
     <description>ZorroBPM Community Edition: a lightweight Spring Boot based BPM engine.</description>
     <url>https://zorrobpm.dev</url>
 
@@ -41,7 +41,44 @@
     <dependencies>
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-amqp</artifactId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-web</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>jakarta.xml.bind</groupId>
+            <artifactId>jakarta.xml.bind-api</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>tools.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-liquibase</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.camunda.feel</groupId>
+            <artifactId>feel-engine</artifactId>
+            <version>1.19.3</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.zorrodev.bpm</groupId>
+            <artifactId>zorrobpm-contract</artifactId>
+            <version>0.7.26-SNAPSHOT</version>
         </dependency>
 
         <dependency>
@@ -49,24 +86,38 @@
             <artifactId>lombok</artifactId>
             <optional>true</optional>
         </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-amqp-test</artifactId>
+            <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
 
         <dependency>
-            <groupId>tools.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
+            <groupId>com.tngtech.archunit</groupId>
+            <artifactId>archunit</artifactId>
+            <version>1.4.1</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.zorrodev.bpm</groupId>
+            <artifactId>zorrobpm-event</artifactId>
+            <version>0.7.26-SNAPSHOT</version>
+            <scope>compile</scope>
+        </dependency>
 
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>com.zorrodev.bpm</groupId>
             <artifactId>zorrobpm-exchange</artifactId>
-            <version>0.7.27-SNAPSHOT</version>
+            <version>0.7.26-SNAPSHOT</version>
             <scope>compile</scope>
         </dependency>
+
     </dependencies>
 
     <build>
@@ -74,36 +125,63 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <excludes>**/*IntegrationTests.java</excludes>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
                 <executions>
                     <execution>
-                        <id>default-compile</id>
-                        <phase>compile</phase>
                         <goals>
-                            <goal>compile</goal>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
                         </goals>
-                        <configuration>
-                            <annotationProcessorPaths>
-                                <path>
-                                    <groupId>org.projectlombok</groupId>
-                                    <artifactId>lombok</artifactId>
-                                </path>
-                            </annotationProcessorPaths>
-                        </configuration>
+                    </execution>
+                </executions>
+                <configuration>
+                    <includes>
+                        <include>**/*IntegrationTests.java</include>
+                    </includes>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.8.14</version>
+                <configuration>
+                    <excludes>
+                        <exclude>com/zorrodev/bpm/engine/entity/*</exclude>
+                        <exclude>com/zorrodev/bpm/engine/bpmn/**</exclude>
+                        <exclude>com/zorrodev/bpm/engine/event/**</exclude>
+                    </excludes>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>coverage-initialize</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
                     </execution>
                     <execution>
-                        <id>default-testCompile</id>
-                        <phase>test-compile</phase>
+                        <id>coverage-report</id>
+                        <phase>test</phase>
                         <goals>
-                            <goal>testCompile</goal>
+                            <goal>report</goal>
                         </goals>
-                        <configuration>
-                            <annotationProcessorPaths>
-                                <path>
-                                    <groupId>org.projectlombok</groupId>
-                                    <artifactId>lombok</artifactId>
-                                </path>
-                            </annotationProcessorPaths>
-                        </configuration>
                     </execution>
                 </executions>
             </plugin>

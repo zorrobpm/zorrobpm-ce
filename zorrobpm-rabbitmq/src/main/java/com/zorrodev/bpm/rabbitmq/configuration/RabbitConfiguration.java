@@ -16,13 +16,16 @@ import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.amqp.autoconfigure.RabbitTemplateConfigurer;
 import org.springframework.boot.amqp.autoconfigure.SimpleRabbitListenerContainerFactoryConfigurer;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.retry.RetryPolicy;
 
 import java.time.Duration;
 
+/** Active on the RabbitMQ transport only ({@code zorrobpm.transport}, {@code rabbitmq} by default). */
 @Configuration
+@ConditionalOnProperty(name = "zorrobpm.transport", havingValue = "rabbitmq", matchIfMissing = true)
 public class RabbitConfiguration {
 
     public static final String COMPLETE_SERVICE_TASK_CONTAINER_FACTORY = "completeServiceTaskContainerFactory";
