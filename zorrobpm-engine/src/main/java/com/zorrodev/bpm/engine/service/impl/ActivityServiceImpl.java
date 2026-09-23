@@ -2,6 +2,7 @@ package com.zorrodev.bpm.engine.service.impl;
 
 import com.zorrodev.bpm.contract.exception.EngineException;
 import com.zorrodev.bpm.contract.exception.IncidentAlreadyResolvedException;
+import com.zorrodev.bpm.contract.exception.ServiceTaskNotFoundException;
 import com.zorrodev.bpm.contract.exception.TaskNotActiveException;
 import com.zorrodev.bpm.contract.model.ProcessDefinition;
 import com.zorrodev.bpm.contract.model.ProcessInstance;
@@ -302,17 +303,27 @@ public class ActivityServiceImpl implements ActivityService {
     }
 
     @Override
-    public void failServiceTask(UUID serviceTaskId, String message) {
+    public UUID failServiceTask(UUID serviceTaskId, String message) {
+        if (!dbService.hasServiceTask(serviceTaskId)) {
+            throw new ServiceTaskNotFoundException("Service task " + serviceTaskId + " not found");
+        }
+        // The row lock serializes the failure with a completion or a boundary timer firing on this task.
         Activity activity = dbService.getActivityForUpdate(serviceTaskId);
-        if (activity.getCompletedAt() != null || activity.getStatus() == ActivityStatus.ERROR) {
-            log.info("{}/{}: Ignoring failure of {} {}/{} in status {}", activity.getProcessInstanceId(), activity.getToken(), activity.getType(), serviceTaskId, activity.getBpmnElementId(), activity.getStatus());
-            return;
+        if (activity.getCompletedAt() != null) {
+            throw new TaskNotActiveException("Service task " + serviceTaskId + " is not active: " + activity.getStatus());
+        }
+
+        Optional<UUID> openIncidentId = dbService.findOpenIncidentId(serviceTaskId);
+        if (openIncidentId.isPresent()) {
+            log.info("{}/{}: Ignoring repeated failure of {} {}/{}: incident {} is open", activity.getProcessInstanceId(), activity.getToken(), activity.getType(), serviceTaskId, activity.getBpmnElementId(), openIncidentId.get());
+            return openIncidentId.get();
         }
 
         UUID incidentId = dbService.createIncident(serviceTaskId, message);
         dbService.setActivityStatus(serviceTaskId, ActivityStatus.ERROR);
 
         log.warn("{}/{}: Incident {} on {}: {}/{}: {}", activity.getProcessInstanceId(), activity.getToken(), incidentId, activity.getType(), serviceTaskId, activity.getBpmnElementId(), message);
+        return incidentId;
     }
 
     private void enterUserTask(UUID processInstanceId, UUID token, BpmnProcessDefinitionModel bpmn, BpmnElementModel bpmnElement) {

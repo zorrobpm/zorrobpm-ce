@@ -443,6 +443,13 @@ public class DBServiceImpl implements DBService {
     }
 
     @Override
+    public Optional<UUID> findOpenIncidentId(UUID activityId) {
+        return incidentRepository.findByActivityIdAndCompletedAtIsNull(activityId).stream()
+            .map(IncidentEntity::getId)
+            .findFirst();
+    }
+
+    @Override
     public void setActivityStatus(UUID activityId, ActivityStatus status) {
         activityRepository.setStatus(activityId, status);
     }

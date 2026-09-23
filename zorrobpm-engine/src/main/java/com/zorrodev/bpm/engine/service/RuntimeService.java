@@ -16,6 +16,11 @@ public interface RuntimeService {
 
     IdDTO completeServiceTask(UUID id, List<ProcessVariable> variables);
 
+    /**
+     * Reports a failure of the service task and returns the id of its open incident.
+     */
+    IdDTO failServiceTask(UUID id, String message);
+
     IdDTO completeUserTask(UUID id, List<ProcessVariable> variables);
 
     IdDTO claimUserTask(UUID id, String assignee);

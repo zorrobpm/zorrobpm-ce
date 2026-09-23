@@ -178,6 +178,22 @@ public class IncidentResolveIntegrationTests {
             .isInstanceOf(IncidentAlreadyResolvedException.class);
     }
 
+    @Transactional
+    @Test
+    void jobFailureForCompletedServiceTaskIsIgnored() throws Exception {
+        UUID processInstanceId = start("process2.bpmn");
+        UUID serviceTaskId = singleOpenServiceTask(processInstanceId).getId();
+        runtimeService.completeServiceTask(serviceTaskId, List.of());
+        refresh();
+
+        fail(serviceTaskId, "late failure");
+        refresh();
+
+        assertThat(incidents(serviceTaskId)).isEmpty();
+        assertThat(activityRepository.findById(serviceTaskId).orElseThrow().getStatus()).isEqualTo(ActivityStatus.COMPLETED);
+        assertThat(processInstanceRepository.findById(processInstanceId).orElseThrow().getCompletedAt()).isNotNull();
+    }
+
     private void fail(UUID serviceTaskId, String message) {
         ServiceTaskFailed event = new ServiceTaskFailed();
         event.setServiceTaskId(serviceTaskId);
