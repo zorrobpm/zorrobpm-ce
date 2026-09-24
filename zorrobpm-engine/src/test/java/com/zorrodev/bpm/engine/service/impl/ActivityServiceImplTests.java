@@ -773,7 +773,7 @@ public class ActivityServiceImplTests {
         verify(dbService, never()).setVariables(any(), any());
         verify(dbService).resolveIncident(incidentId);
         verify(dbService).terminateActivity(failedActivityId);
-        verify(dbService).createUserTask(eq(newActivityId), eq(bpmn.getElement("userTask1")), any());
+        verify(dbService).createUserTask(eq(newActivityId), eq(bpmn.getElement("userTask1")), any(), isNull());
         verify(serviceTaskEnqueueService, never()).enqueueAfterCommit(any());
     }
 

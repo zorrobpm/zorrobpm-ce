@@ -1,5 +1,7 @@
 package com.zorrodev.bpm.engine.service.impl;
 
+import com.zorrodev.bpm.engine.exception.InputMappingException;
+import com.zorrodev.bpm.engine.service.InputMappingFailureService;
 import com.zorrodev.bpm.engine.service.JobDetailFactory;
 import com.zorrodev.bpm.engine.service.ServiceTaskEnqueueService;
 import com.zorrodev.bpm.exchange.ServiceTaskEnqueued;
@@ -19,14 +21,27 @@ public class ServiceTaskEnqueueServiceImpl implements ServiceTaskEnqueueService 
 
     private final JobDetailFactory jobDetailFactory;
     private final ApplicationEventPublisher publisher;
+    private final InputMappingFailureService inputMappingFailureService;
 
     @Override
     public void enqueueAfterCommit(UUID serviceTaskId) {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                publisher.publishEvent(new ServiceTaskEnqueued(jobDetailFactory.create(serviceTaskId)));
+                publishJob(serviceTaskId);
             }
         });
+    }
+
+    /**
+     * Builds and publishes the job. When its input mapping fails, the job is not published and the
+     * service task gets an incident instead; a re-queue after the resolve evaluates the mapping again.
+     */
+    public void publishJob(UUID serviceTaskId) {
+        try {
+            publisher.publishEvent(new ServiceTaskEnqueued(jobDetailFactory.create(serviceTaskId)));
+        } catch (InputMappingException e) {
+            inputMappingFailureService.reportJobInputMappingFailure(serviceTaskId, e);
+        }
     }
 }

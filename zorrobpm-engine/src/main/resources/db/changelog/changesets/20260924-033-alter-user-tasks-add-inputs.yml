@@ -1,0 +1,15 @@
+databaseChangeLog:
+  - logicalFilePath: 20260924-033
+  - changeSet:
+      id: 20260924-033
+      author: zorrodev
+      comment: >
+        Input mapping of a user task evaluated when the task was created: a JSON array of variables
+        (name, value, type). Empty for a task without a mapping.
+      changes:
+        - addColumn:
+            tableName: user_tasks
+            columns:
+              - column:
+                  name: inputs
+                  type: text

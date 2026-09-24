@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_im-user" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="im-user" name="User task with input mapping" isExecutable="true">
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>toStep</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="review" name="Review">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="=order.id" target="orderId" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>toStep</bpmn:incoming>
+      <bpmn:outgoing>toDone</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="done">
+      <bpmn:incoming>toDone</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="toStep" sourceRef="start" targetRef="review" />
+    <bpmn:sequenceFlow id="toDone" sourceRef="review" targetRef="done" />
+  </bpmn:process>
+</bpmn:definitions>

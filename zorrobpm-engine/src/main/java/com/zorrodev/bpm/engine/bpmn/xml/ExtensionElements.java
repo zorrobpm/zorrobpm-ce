@@ -3,6 +3,7 @@ package com.zorrodev.bpm.engine.bpmn.xml;
 import com.zorrodev.bpm.engine.bpmn.xml.extension.AssignmentDefinitionModel;
 import com.zorrodev.bpm.engine.bpmn.xml.extension.CalledElementModel;
 import com.zorrodev.bpm.engine.bpmn.xml.extension.FormDefinitionModel;
+import com.zorrodev.bpm.engine.bpmn.xml.extension.IoMappingModel;
 import com.zorrodev.bpm.engine.bpmn.xml.extension.TaskDefinitionModel;
 import com.zorrodev.bpm.engine.bpmn.xml.extension.ZeebeLoopCharacteristicsModel;
 import jakarta.xml.bind.annotation.XmlAccessType;
@@ -27,4 +28,6 @@ public class ExtensionElements {
     private CalledElementModel calledElement;
     @XmlElement(name = "loopCharacteristics", namespace = "http://camunda.org/schema/zeebe/1.0")
     private ZeebeLoopCharacteristicsModel loopCharacteristics;
+    @XmlElement(name = "ioMapping", namespace = "http://camunda.org/schema/zeebe/1.0")
+    private IoMappingModel ioMapping;
 }
