@@ -6,11 +6,11 @@ import jakarta.xml.bind.annotation.XmlAttribute;
 import lombok.Getter;
 import lombok.Setter;
 
-/** {@code zeebe:input source target}. */
+/** {@code zeebe:input} or {@code zeebe:output}: {@code source} and {@code target}. */
 @Getter
 @Setter
 @XmlAccessorType(XmlAccessType.FIELD)
-public class IoInputModel {
+public class IoMappingEntryModel {
     @XmlAttribute
     private String source;
     @XmlAttribute

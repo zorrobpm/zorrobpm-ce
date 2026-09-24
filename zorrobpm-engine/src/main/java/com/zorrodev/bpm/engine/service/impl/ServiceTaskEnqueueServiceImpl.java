@@ -1,6 +1,6 @@
 package com.zorrodev.bpm.engine.service.impl;
 
-import com.zorrodev.bpm.engine.exception.InputMappingException;
+import com.zorrodev.bpm.contract.exception.VariableMappingException;
 import com.zorrodev.bpm.engine.service.InputMappingFailureService;
 import com.zorrodev.bpm.engine.service.JobDetailFactory;
 import com.zorrodev.bpm.engine.service.ServiceTaskEnqueueService;
@@ -40,7 +40,7 @@ public class ServiceTaskEnqueueServiceImpl implements ServiceTaskEnqueueService 
     public void publishJob(UUID serviceTaskId) {
         try {
             publisher.publishEvent(new ServiceTaskEnqueued(jobDetailFactory.create(serviceTaskId)));
-        } catch (InputMappingException e) {
+        } catch (VariableMappingException e) {
             inputMappingFailureService.reportJobInputMappingFailure(serviceTaskId, e);
         }
     }

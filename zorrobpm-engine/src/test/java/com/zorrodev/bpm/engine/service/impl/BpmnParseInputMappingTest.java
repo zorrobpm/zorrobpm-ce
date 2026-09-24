@@ -2,7 +2,7 @@ package com.zorrodev.bpm.engine.service.impl;
 
 import com.zorrodev.bpm.contract.exception.BpmnParseException;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnElementModel;
-import com.zorrodev.bpm.engine.bpmn.model.InputMappingModel;
+import com.zorrodev.bpm.engine.bpmn.model.VariableMappingModel;
 import com.zorrodev.bpm.engine.service.BpmnParseService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -19,16 +19,16 @@ class BpmnParseInputMappingTest {
     @ParameterizedTest(name = "{0}")
     @ValueSource(strings = {"serviceTask", "userTask", "callActivity"})
     void parsesExpressionAndLiteralInputs(String kind) {
-        InputMappingModel mapping = parse(kind, """
+        VariableMappingModel mapping = parse(kind, """
             <zeebe:ioMapping>
               <zeebe:input source="=order.total" target="amount" />
               <zeebe:input source="KZT" target="currency" />
             </zeebe:ioMapping>
             """).getExtensions().getInputMapping();
 
-        assertThat(mapping.inputs()).containsExactly(
-            new InputMappingModel.Input("amount", "order.total", true),
-            new InputMappingModel.Input("currency", "KZT", false));
+        assertThat(mapping.mappings()).containsExactly(
+            new VariableMappingModel.Mapping("amount", "order.total", true),
+            new VariableMappingModel.Mapping("currency", "KZT", false));
     }
 
     @Test
@@ -38,12 +38,13 @@ class BpmnParseInputMappingTest {
             """);
 
         assertThat(element.getExtensions().getServiceTaskExtension()).isNull();
-        assertThat(element.getExtensions().getInputMapping().inputs()).hasSize(1);
+        assertThat(element.getExtensions().getInputMapping().mappings()).hasSize(1);
     }
 
     @Test
     void noMappingWithoutIoMapping() {
         assertThat(parse("serviceTask", "").getExtensions().getInputMapping()).isNull();
+        assertThat(parse("serviceTask", "").getExtensions().getOutputMapping()).isNull();
         assertThat(parse("userTask", "").getExtensions()).isNull();
         assertThat(parse("callActivity", "").getExtensions().getInputMapping()).isNull();
     }
@@ -54,18 +55,66 @@ class BpmnParseInputMappingTest {
     }
 
     @Test
-    void outputsAreIgnored() {
-        InputMappingModel mapping = parse("serviceTask", """
+    void outputsDoNotAffectInputs() {
+        BpmnElementModel element = parse("serviceTask", """
             <zeebe:ioMapping>
               <zeebe:input source="=a" target="b" />
               <zeebe:output source="=result" target="paid" />
             </zeebe:ioMapping>
-            """).getExtensions().getInputMapping();
+            """);
 
-        assertThat(mapping.inputs()).containsExactly(new InputMappingModel.Input("b", "a", true));
-        assertThat(parse("serviceTask", """
+        assertThat(element.getExtensions().getInputMapping().mappings()).containsExactly(new VariableMappingModel.Mapping("b", "a", true));
+        assertThat(element.getExtensions().getOutputMapping().mappings()).containsExactly(new VariableMappingModel.Mapping("paid", "result", true));
+        BpmnElementModel outputsOnly = parse("serviceTask", """
             <zeebe:ioMapping><zeebe:output source="=result" target="paid" /></zeebe:ioMapping>
-            """).getExtensions().getInputMapping()).isNull();
+            """);
+        assertThat(outputsOnly.getExtensions().getInputMapping()).isNull();
+        assertThat(outputsOnly.getExtensions().getOutputMapping().mappings()).hasSize(1);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {"serviceTask", "userTask", "callActivity"})
+    void parsesExpressionAndLiteralOutputs(String kind) {
+        VariableMappingModel mapping = parse(kind, """
+            <zeebe:ioMapping>
+              <zeebe:output source="=result.transactionId" target="paymentId" />
+              <zeebe:output source="done" target="stage" />
+            </zeebe:ioMapping>
+            """).getExtensions().getOutputMapping();
+
+        assertThat(mapping.mappings()).containsExactly(
+            new VariableMappingModel.Mapping("paymentId", "result.transactionId", true),
+            new VariableMappingModel.Mapping("stage", "done", false));
+    }
+
+    @Test
+    void inputAndOutputMayShareATarget() {
+        BpmnElementModel element = parse("serviceTask", """
+            <zeebe:ioMapping>
+              <zeebe:input source="=order.total" target="amount" />
+              <zeebe:output source="=amount * 2" target="amount" />
+            </zeebe:ioMapping>
+            """);
+
+        assertThat(element.getExtensions().getInputMapping().mappings()).hasSize(1);
+        assertThat(element.getExtensions().getOutputMapping().mappings()).hasSize(1);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @CsvSource(delimiter = '|', value = {
+        "missing source   | <zeebe:output target=\"paymentId\" />                                                             | has no source",
+        "missing target   | <zeebe:output source=\"=1\" />                                                                    | without target",
+        "duplicate target | <zeebe:output source=\"=1\" target=\"paymentId\" /><zeebe:output source=\"=2\" target=\"paymentId\" /> | is declared twice",
+    })
+    void rejectsInvalidOutputs(String name, String outputs, String reason) {
+        for (String kind : new String[] {"serviceTask", "userTask", "callActivity"}) {
+            assertThatThrownBy(() -> parse(kind, "<zeebe:ioMapping>" + outputs + "</zeebe:ioMapping>"))
+                .isInstanceOf(BpmnParseException.class)
+                .hasMessageContaining("'step'")
+                .hasMessageContaining("output")
+                .hasMessageContaining(reason.equals("without target") ? "output" : "'paymentId'")
+                .hasMessageContaining(reason);
+        }
     }
 
     @ParameterizedTest(name = "{0}")

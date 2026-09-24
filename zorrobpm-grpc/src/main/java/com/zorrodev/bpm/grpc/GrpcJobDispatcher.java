@@ -1,6 +1,6 @@
 package com.zorrodev.bpm.grpc;
 
-import com.zorrodev.bpm.engine.exception.InputMappingException;
+import com.zorrodev.bpm.contract.exception.VariableMappingException;
 import com.zorrodev.bpm.engine.service.DBService;
 import com.zorrodev.bpm.engine.service.InputMappingFailureService;
 import com.zorrodev.bpm.engine.service.JobDetailFactory;
@@ -207,7 +207,7 @@ public class GrpcJobDispatcher implements DisposableBean {
             try {
                 detail = transaction.execute(status ->
                     dbService.lockServiceTaskJob(serviceTaskId, subscription.owner, lockedUntil) ? jobDetailFactory.create(serviceTaskId) : null);
-            } catch (InputMappingException e) {
+            } catch (VariableMappingException e) {
                 // The lock is rolled back with the transaction; the incident takes the job out of the ready ones.
                 inputMappingFailureService.reportJobInputMappingFailure(serviceTaskId, e);
                 continue;
