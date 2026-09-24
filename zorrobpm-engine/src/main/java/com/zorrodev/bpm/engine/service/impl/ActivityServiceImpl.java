@@ -7,6 +7,8 @@ import com.zorrodev.bpm.contract.exception.TaskNotActiveException;
 import com.zorrodev.bpm.contract.model.ProcessDefinition;
 import com.zorrodev.bpm.contract.model.ProcessInstance;
 import com.zorrodev.bpm.contract.model.ProcessVariable;
+import com.zorrodev.bpm.engine.bpmn.model.InputMappingModel;
+import com.zorrodev.bpm.engine.service.InputMappingService;
 import com.zorrodev.bpm.contract.model.ProcessVariableType;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnConditionExpressionModel;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnElementExtensionModel;
@@ -68,6 +70,7 @@ public class ActivityServiceImpl implements ActivityService {
     private final DBService dbService;
     private final BpmnService bpmnService;
     private final ScriptService scriptService;
+    private final InputMappingService inputMappingService;
     private final ServiceTaskEnqueueService serviceTaskEnqueueService;
     private final TimerExpressionService timerExpressionService;
     private final ObjectMapper objectMapper;
@@ -184,7 +187,8 @@ public class ActivityServiceImpl implements ActivityService {
 
         log.info("{}/{}: Entering {}: {}/{}", processInstanceId, tokenId, bpmnElement.getType(), activityId, bpmnElement.getId());
 
-        List<ProcessVariable> variables = dbService.getVariables(processInstanceId);
+        // The child starts with the input mapping of the call activity, or with a copy of everything.
+        List<ProcessVariable> variables = mappedOrAll(bpmnElement, () -> dbService.getVariables(processInstanceId));
 
         String key = bpmnElement.getExtensions().getCallActivityExtension().getProcessId();
         Integer version = dbService.getMaxProcessDefinitionVersionByKey(key);
@@ -277,6 +281,9 @@ public class ActivityServiceImpl implements ActivityService {
 
     private void enterServiceTask(UUID processInstanceId, UUID token, BpmnProcessDefinitionModel bpmn, BpmnElementModel bpmnElement) {
         List<PendingTimer> timers = scheduleBoundaryTimers(processInstanceId, bpmn, bpmnElement);
+        // The job is built after the commit, where a failing mapping has no element execution to catch
+        // it: evaluate it here so that the failure becomes an incident of the entry, before the job exists.
+        mappedOrAll(bpmnElement, () -> dbService.getVariables(processInstanceId));
         UUID activityId = dbService.createActivity(processInstanceId, token, bpmnElement);
         armBoundaryTimers(processInstanceId, activityId, timers);
         dbService.createServiceTask(activityId, bpmnElement);
@@ -471,7 +478,8 @@ public class ActivityServiceImpl implements ActivityService {
         armBoundaryTimers(processInstanceId, activityId, timers);
         ResolvedAssignment assignment = resolveAssignment(userTaskExtension(bpmnElement),
             () -> dbService.getVariables(processInstanceId));
-        dbService.createUserTask(activityId, bpmnElement, assignment);
+        String inputs = userTaskInputs(bpmnElement, () -> dbService.getVariables(processInstanceId));
+        dbService.createUserTask(activityId, bpmnElement, assignment, inputs);
 
         log.info("{}/{}: Entering {}: {}/{}", processInstanceId, token, bpmnElement.getType(), activityId, bpmnElement.getId());
     }
@@ -511,7 +519,8 @@ public class ActivityServiceImpl implements ActivityService {
         UUID activityId = dbService.createActivity(processInstanceId, token, bpmnElement, scopeActivityId, index, total);
         ResolvedAssignment assignment = resolveAssignment(userTaskExtension(bpmnElement),
             () -> multiInstanceVariables(processInstanceId, bpmnElement, item, index));
-        dbService.createUserTask(activityId, bpmnElement, index, total, objectMapper.writeValueAsString(item), assignment);
+        String inputs = userTaskInputs(bpmnElement, () -> multiInstanceVariables(processInstanceId, bpmnElement, item, index));
+        dbService.createUserTask(activityId, bpmnElement, index, total, objectMapper.writeValueAsString(item), assignment, inputs);
 
         log.info("{}/{}: Entering {}: {}/{} [{}/{}]", processInstanceId, token, bpmnElement.getType(), activityId, bpmnElement.getId(), index, total);
     }
@@ -539,6 +548,28 @@ public class ActivityServiceImpl implements ActivityService {
         variable.setType(ProcessVariableType.JSON);
         variable.setValue(objectMapper.writeValueAsString(value));
         return variable;
+    }
+
+    private static InputMappingModel inputMapping(BpmnElementModel element) {
+        return Optional.ofNullable(element.getExtensions())
+            .map(BpmnElementExtensionModel::getInputMapping)
+            .orElse(null);
+    }
+
+    /** The input mapping of the element evaluated on the given context, or the context itself without one. */
+    private List<ProcessVariable> mappedOrAll(BpmnElementModel element, Supplier<List<ProcessVariable>> context) {
+        InputMappingModel mapping = inputMapping(element);
+        List<ProcessVariable> variables = context.get();
+        return mapping == null ? variables : inputMappingService.evaluate(element.getId(), mapping, variables);
+    }
+
+    /** The inputs a user task keeps, as JSON, or {@code null} without a mapping. */
+    private String userTaskInputs(BpmnElementModel element, Supplier<List<ProcessVariable>> context) {
+        InputMappingModel mapping = inputMapping(element);
+        if (mapping == null) {
+            return null;
+        }
+        return objectMapper.writeValueAsString(inputMappingService.evaluate(element.getId(), mapping, context.get()));
     }
 
     private static UserTaskExtensionModel userTaskExtension(BpmnElementModel element) {
