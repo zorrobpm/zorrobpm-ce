@@ -122,6 +122,50 @@ class JobGrpcServiceTests {
     }
 
     @Test
+    void jobWithInputMappingCarriesOnlyTheMappedVariables() {
+        GrpcTestSupport.Worker worker = subscribe(request("charge"));
+
+        start("charge-mapping.bpmn", variable("order", "{\"total\":100}", ProcessVariableType.JSON),
+            variable("customerId", "c1", ProcessVariableType.STRING));
+
+        Job job = worker.next(WAIT);
+        assertThat(job).isNotNull();
+        assertThat(job.getVariablesList()).extracting(Variable::getName, Variable::getValue, Variable::getType)
+            .containsExactly(org.assertj.core.groups.Tuple.tuple("amount", "100", "LONG"),
+                org.assertj.core.groups.Tuple.tuple("currency", "KZT", "STRING"));
+    }
+
+    @Test
+    void inputMappingFailureOnRedeliveryOpensIncidentInsteadOfPushing() {
+        GrpcTestSupport.Worker a = subscribe(request("charge").toBuilder().setLockTimeout(Duration.newBuilder().setSeconds(600)).build());
+        UUID instance = start("charge-mapping-failing.bpmn", variable("order", "{\"total\":100}", ProcessVariableType.JSON));
+        assertThat(a.next(WAIT)).isNotNull();
+        UUID charge = taskId(instance, "charge");
+        // A string has no 'total': the mapping fails from now on.
+        new TransactionTemplate(transactionManager).executeWithoutResult(status ->
+            dbService.setVariables(instance, List.of(variable("order", "abc", ProcessVariableType.STRING))));
+        GrpcTestSupport.Worker b = subscribe(request("charge"));
+
+        a.cancel();
+
+        await(WAIT, () -> !incidents(charge).isEmpty());
+        List<IncidentEntity> incidents = incidents(charge);
+        assertThat(incidents).hasSize(1);
+        assertThat(incidents.get(0).getErrorCode()).isEqualTo("INPUT_MAPPING_FAILED");
+        assertThat(serviceTask(charge).getLockedBy()).isNull();
+        assertThat(b.next(SHORT)).isNull();
+
+        new TransactionTemplate(transactionManager).executeWithoutResult(status ->
+            runtimeService.resolveIncident(incidents.get(0).getId(), List.of(variable("order", "{\"total\":150}", ProcessVariableType.JSON))));
+
+        Job again = b.next(WAIT);
+        assertThat(again).isNotNull();
+        assertThat(again.getServiceTaskId()).isEqualTo(charge.toString());
+        assertThat(again.getVariablesList()).extracting(Variable::getName, Variable::getValue)
+            .contains(org.assertj.core.groups.Tuple.tuple("amount", "150"));
+    }
+
+    @Test
     void emptyJobListIsRejected() {
         GrpcTestSupport.Worker worker = subscribe(SubscribeJobsRequest.newBuilder().build());
 

@@ -1,6 +1,7 @@
 package com.zorrodev.bpm.grpc;
 
 import com.zorrodev.bpm.engine.service.DBService;
+import com.zorrodev.bpm.engine.service.InputMappingFailureService;
 import com.zorrodev.bpm.engine.service.JobDetailFactory;
 import com.zorrodev.bpm.engine.service.ServiceTaskResultService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -22,9 +23,10 @@ public class GrpcTransportConfiguration {
 
     @Bean
     public GrpcJobDispatcher grpcJobDispatcher(DBService dbService, JobDetailFactory jobDetailFactory,
+                                               InputMappingFailureService inputMappingFailureService,
                                                PlatformTransactionManager transactionManager, Clock clock,
                                                GrpcTransportProperties properties) {
-        return new GrpcJobDispatcher(dbService, jobDetailFactory, transactionManager, clock, properties);
+        return new GrpcJobDispatcher(dbService, jobDetailFactory, inputMappingFailureService, transactionManager, clock, properties);
     }
 
     @Bean
