@@ -8,6 +8,7 @@ import com.zorrodev.bpm.engine.bpmn.model.TimerEventExtensionModel;
 import com.zorrodev.bpm.engine.bpmn.model.TimerEventType;
 import com.zorrodev.bpm.engine.bpmn.xml.*;
 import com.zorrodev.bpm.engine.bpmn.xml.extension.CalledElementModel;
+import com.zorrodev.bpm.engine.bpmn.xml.extension.IoInputModel;
 import com.zorrodev.bpm.engine.bpmn.xml.extension.UserTaskExtensionModel;
 import com.zorrodev.bpm.engine.bpmn.xml.extension.ZeebeLoopCharacteristicsModel;
 import com.zorrodev.bpm.engine.bpmn.model.MultiInstanceExtensionModel;
@@ -17,6 +18,7 @@ import com.zorrodev.bpm.engine.bpmn.model.BpmnElementModel;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnElementType;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnFlowModel;
 import com.zorrodev.bpm.engine.bpmn.model.ExclusiveGatewayExtensionModel;
+import com.zorrodev.bpm.engine.bpmn.model.InputMappingModel;
 import com.zorrodev.bpm.engine.bpmn.model.ServiceTaskExtensionModel;
 import com.zorrodev.bpm.engine.service.BpmnParseService;
 import jakarta.xml.bind.JAXB;
@@ -27,6 +29,7 @@ import java.io.StringReader;
 import java.time.Duration;
 import java.time.format.DateTimeParseException;
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -352,7 +355,52 @@ public class BpmnParseServiceImpl implements BpmnParseService {
             element.getExtensions().getServiceTaskExtension().setRetries(parseRetries(serviceTask));
             element.getExtensions().getServiceTaskExtension().setRetryTimeout(parseRetryTimeout(serviceTask));
         }
+        setInputMapping(element, "Service task", serviceTask.getExtensionElements());
         return element;
+    }
+
+    /**
+     * {@code zeebe:ioMapping}: a {@code zeebe:input} per input variable. A source with a leading
+     * {@code =} is a FEEL expression, otherwise a string literal. {@code zeebe:output} is ignored.
+     * An {@code ioMapping} without inputs is no mapping.
+     */
+    private static void setInputMapping(BpmnElementModel element, String kind, ExtensionElements extensionElements) {
+        InputMappingModel mapping = parseInputMapping(kind, element.getId(), extensionElements);
+        if (mapping == null) {
+            return;
+        }
+        if (element.getExtensions() == null) {
+            element.setExtensions(new BpmnElementExtensionModel());
+        }
+        element.getExtensions().setInputMapping(mapping);
+    }
+
+    static InputMappingModel parseInputMapping(String kind, String id, ExtensionElements extensionElements) {
+        List<IoInputModel> inputs = Optional.ofNullable(extensionElements)
+            .map(ExtensionElements::getIoMapping)
+            .map(io -> io.getInputs())
+            .orElse(List.of());
+        if (inputs.isEmpty()) {
+            return null;
+        }
+        List<InputMappingModel.Input> result = new ArrayList<>();
+        Set<String> targets = new HashSet<>();
+        for (IoInputModel input : inputs) {
+            String target = input.getTarget() == null ? null : input.getTarget().trim();
+            if (isBlank(target)) {
+                throw new BpmnParseException(kind + " '" + id + "': input mapping has an input without target");
+            }
+            if (isBlank(input.getSource())) {
+                throw new BpmnParseException(kind + " '" + id + "': input '" + target + "' has no source");
+            }
+            if (!targets.add(target)) {
+                throw new BpmnParseException(kind + " '" + id + "': input target '" + target + "' is declared twice");
+            }
+            String source = input.getSource();
+            boolean expression = source.startsWith("=");
+            result.add(new InputMappingModel.Input(target, expression ? source.substring(1) : source, expression));
+        }
+        return new InputMappingModel(List.copyOf(result));
     }
 
     static final String RETRY_TIMEOUT_PROPERTY = "retryTimeout";
@@ -440,6 +488,7 @@ public class BpmnParseServiceImpl implements BpmnParseService {
                 }
             }
         }
+        setInputMapping(element, "User task", userTask.getExtensionElements());
         return element;
     }
 
@@ -558,6 +607,7 @@ public class BpmnParseServiceImpl implements BpmnParseService {
                 element.getExtensions().getCallActivityExtension().setPropagateAllChildVariables(calledElement.getPropagateAllChildVariables());
             }
         }
+        setInputMapping(element, "Call activity", callActivity.getExtensionElements());
         return element;
     }
 }
