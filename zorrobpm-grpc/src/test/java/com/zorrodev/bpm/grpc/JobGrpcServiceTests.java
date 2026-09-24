@@ -319,6 +319,52 @@ class JobGrpcServiceTests {
     }
 
     @Test
+    void completeJobWritesOnlyTheOutputMapping() {
+        GrpcTestSupport.Worker worker = subscribe(request("charge"));
+        UUID instance = start("charge-output-mapping.bpmn");
+        Job job = worker.next(WAIT);
+
+        stub.completeJob(CompleteJobRequest.newBuilder().setServiceTaskId(job.getServiceTaskId())
+            .addVariables(Variable.newBuilder().setName("result").setValue("{\"transactionId\":\"T-1\"}").setType("JSON"))
+            .addVariables(Variable.newBuilder().setName("debug").setValue("trace").setType("STRING")).build());
+
+        assertThat(serviceTask(taskId(instance, "charge")).getCompletedAt()).isNotNull();
+        assertThat(dbService.getVariables(instance)).extracting(ProcessVariable::getName, ProcessVariable::getValue)
+            .containsExactly(org.assertj.core.groups.Tuple.tuple("paymentId", "T-1"));
+        assertThat(dbService.getProcessInstance(instance).getCompletedAt()).isNotNull();
+    }
+
+    @Test
+    void completeJobFailingTheOutputMappingIsOkAndOpensAnIncident() {
+        GrpcTestSupport.Worker worker = subscribe(request("charge"));
+        UUID instance = start("charge-output-mapping-failing.bpmn");
+        Job job = worker.next(WAIT);
+        UUID charge = taskId(instance, "charge");
+
+        stub.completeJob(CompleteJobRequest.newBuilder().setServiceTaskId(job.getServiceTaskId())
+            .addVariables(Variable.newBuilder().setName("debug").setValue("trace").setType("STRING")).build());
+
+        List<IncidentEntity> incidents = incidents(charge);
+        assertThat(incidents).hasSize(1);
+        assertThat(incidents.get(0).getErrorCode()).isEqualTo("OUTPUT_MAPPING_FAILED");
+        assertThat(serviceTask(charge).getCompletedAt()).isNull();
+        assertThat(dbService.getVariables(instance)).isEmpty();
+        assertThat(worker.next(SHORT)).isNull();
+
+        new TransactionTemplate(transactionManager).executeWithoutResult(status ->
+            runtimeService.resolveIncident(incidents.get(0).getId(), List.of()));
+
+        Job again = worker.next(WAIT);
+        assertThat(again).isNotNull();
+        assertThat(again.getServiceTaskId()).isEqualTo(charge.toString());
+        stub.completeJob(CompleteJobRequest.newBuilder().setServiceTaskId(again.getServiceTaskId())
+            .addVariables(Variable.newBuilder().setName("result").setValue("{\"transactionId\":\"T-2\"}").setType("JSON")).build());
+        assertThat(serviceTask(charge).getCompletedAt()).isNotNull();
+        assertThat(dbService.getVariables(instance)).extracting(ProcessVariable::getName, ProcessVariable::getValue)
+            .containsExactly(org.assertj.core.groups.Tuple.tuple("paymentId", "T-2"));
+    }
+
+    @Test
     void repeatedCompletionIsIgnored() {
         GrpcTestSupport.Worker worker = subscribe(request("charge"));
         UUID instance = start("charge-no-retries.bpmn");

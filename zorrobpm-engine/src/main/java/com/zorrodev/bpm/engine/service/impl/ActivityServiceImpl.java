@@ -4,11 +4,12 @@ import com.zorrodev.bpm.contract.exception.EngineException;
 import com.zorrodev.bpm.contract.exception.IncidentAlreadyResolvedException;
 import com.zorrodev.bpm.contract.exception.ServiceTaskNotFoundException;
 import com.zorrodev.bpm.contract.exception.TaskNotActiveException;
+import com.zorrodev.bpm.contract.exception.VariableMappingException;
 import com.zorrodev.bpm.contract.model.ProcessDefinition;
 import com.zorrodev.bpm.contract.model.ProcessInstance;
 import com.zorrodev.bpm.contract.model.ProcessVariable;
-import com.zorrodev.bpm.engine.bpmn.model.InputMappingModel;
-import com.zorrodev.bpm.engine.service.InputMappingService;
+import com.zorrodev.bpm.engine.bpmn.model.VariableMappingModel;
+import com.zorrodev.bpm.engine.service.VariableMappingService;
 import com.zorrodev.bpm.contract.model.ProcessVariableType;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnConditionExpressionModel;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnElementExtensionModel;
@@ -45,6 +46,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
@@ -70,7 +72,7 @@ public class ActivityServiceImpl implements ActivityService {
     private final DBService dbService;
     private final BpmnService bpmnService;
     private final ScriptService scriptService;
-    private final InputMappingService inputMappingService;
+    private final VariableMappingService variableMappingService;
     private final ServiceTaskEnqueueService serviceTaskEnqueueService;
     private final TimerExpressionService timerExpressionService;
     private final ObjectMapper objectMapper;
@@ -306,7 +308,30 @@ public class ActivityServiceImpl implements ActivityService {
         UUID processInstanceId = activity.getProcessInstanceId();
         UUID tokenId = activity.getToken();
 
-        dbService.setVariables(processInstanceId, variables);
+        ProcessInstance processInstance = dbService.getProcessInstance(processInstanceId);
+        BpmnProcessDefinitionModel bpmn = bpmnService.getProcessDefinitionModelById(processInstance.getProcessDefinitionId());
+        BpmnElementModel bpmnElement = bpmn.getElement(activity.getBpmnElementId());
+
+        List<ProcessVariable> toWrite;
+        try {
+            toWrite = mappedOutput(bpmnElement, processInstanceId, variables);
+        } catch (VariableMappingException e) {
+            // The result is accepted, but the process cannot take it: the task stays open with an
+            // incident, and a resolve hands the job to the worker again. Retrying the result as is
+            // would fail the same way, so the worker is not told to.
+            Optional<UUID> openIncidentId = dbService.findOpenIncidentId(serviceTaskId);
+            if (openIncidentId.isPresent()) {
+                log.warn("{}/{}: Output mapping of {} {}/{} failed again, incident {} is open: {}", processInstanceId, tokenId, activity.getType(), serviceTaskId, activity.getBpmnElementId(), openIncidentId.get(), e.getMessage());
+                return;
+            }
+            dbService.setServiceTaskRetries(serviceTaskId, 0);
+            UUID incidentId = dbService.createIncident(serviceTaskId, ErrorReport.of(e, OUTPUT_MAPPING_FAILED));
+            dbService.setActivityStatus(serviceTaskId, ActivityStatus.ERROR);
+            log.warn("{}/{}: Incident {} on {}: {}/{}: {} ({})", processInstanceId, tokenId, incidentId, activity.getType(), serviceTaskId, activity.getBpmnElementId(), e.getMessage(), OUTPUT_MAPPING_FAILED);
+            return;
+        }
+
+        dbService.setVariables(processInstanceId, toWrite);
         dbService.resolveOpenIncidents(serviceTaskId);
         dbService.cancelTimers(serviceTaskId);
         dbService.completeActivity(serviceTaskId);
@@ -314,12 +339,10 @@ public class ActivityServiceImpl implements ActivityService {
 
         log.info("{}/{}: Completing {}: {}/{}", processInstanceId, tokenId, activity.getType(), serviceTaskId, activity.getBpmnElementId());
 
-        ProcessInstance processInstance = dbService.getProcessInstance(processInstanceId);
-        BpmnProcessDefinitionModel bpmn = bpmnService.getProcessDefinitionModelById(processInstance.getProcessDefinitionId());
-        BpmnElementModel bpmnElement = bpmn.getElement(activity.getBpmnElementId());
-
         advance(processInstanceId, tokenId, bpmn, bpmnElement);
     }
+
+    static final String OUTPUT_MAPPING_FAILED = "OUTPUT_MAPPING_FAILED";
 
     @Override
     public FailureOutcome failServiceTask(UUID serviceTaskId, ErrorReport error, RetryOverride override) {
@@ -550,26 +573,45 @@ public class ActivityServiceImpl implements ActivityService {
         return variable;
     }
 
-    private static InputMappingModel inputMapping(BpmnElementModel element) {
+    private static VariableMappingModel inputMapping(BpmnElementModel element) {
         return Optional.ofNullable(element.getExtensions())
             .map(BpmnElementExtensionModel::getInputMapping)
             .orElse(null);
     }
 
+    private static VariableMappingModel outputMapping(BpmnElementModel element) {
+        return Optional.ofNullable(element.getExtensions())
+            .map(BpmnElementExtensionModel::getOutputMapping)
+            .orElse(null);
+    }
+
+    /**
+     * What the step writes into the instance: the result itself without an output mapping, otherwise
+     * the mapping evaluated on the result over the current instance variables.
+     */
+    private List<ProcessVariable> mappedOutput(BpmnElementModel element, UUID processInstanceId, List<ProcessVariable> result) {
+        VariableMappingModel mapping = outputMapping(element);
+        if (mapping == null) {
+            return result;
+        }
+        List<ProcessVariable> context = VariableMappingService.resultContext(dbService.getVariables(processInstanceId), result);
+        return variableMappingService.evaluate(element.getId(), VariableMappingService.Kind.OUTPUT, mapping, context);
+    }
+
     /** The input mapping of the element evaluated on the given context, or the context itself without one. */
     private List<ProcessVariable> mappedOrAll(BpmnElementModel element, Supplier<List<ProcessVariable>> context) {
-        InputMappingModel mapping = inputMapping(element);
+        VariableMappingModel mapping = inputMapping(element);
         List<ProcessVariable> variables = context.get();
-        return mapping == null ? variables : inputMappingService.evaluate(element.getId(), mapping, variables);
+        return mapping == null ? variables : variableMappingService.evaluate(element.getId(), VariableMappingService.Kind.INPUT, mapping, variables);
     }
 
     /** The inputs a user task keeps, as JSON, or {@code null} without a mapping. */
     private String userTaskInputs(BpmnElementModel element, Supplier<List<ProcessVariable>> context) {
-        InputMappingModel mapping = inputMapping(element);
+        VariableMappingModel mapping = inputMapping(element);
         if (mapping == null) {
             return null;
         }
-        return objectMapper.writeValueAsString(inputMappingService.evaluate(element.getId(), mapping, context.get()));
+        return objectMapper.writeValueAsString(variableMappingService.evaluate(element.getId(), VariableMappingService.Kind.INPUT, mapping, context.get()));
     }
 
     private static UserTaskExtensionModel userTaskExtension(BpmnElementModel element) {
@@ -671,16 +713,17 @@ public class ActivityServiceImpl implements ActivityService {
         UUID processInstanceId = activity.getProcessInstanceId();
         UUID token = activity.getToken();
 
-        dbService.setVariables(processInstanceId, variables);
+        ProcessInstance processInstance = dbService.getProcessInstance(processInstanceId);
+        BpmnProcessDefinitionModel bpmn = bpmnService.getProcessDefinitionModelById(processInstance.getProcessDefinitionId());
+        BpmnElementModel bpmnElement = bpmn.getElement(activity.getBpmnElementId());
+
+        // A failing output mapping rejects the completion: the exception rolls the command back.
+        dbService.setVariables(processInstanceId, mappedOutput(bpmnElement, processInstanceId, variables));
         dbService.cancelTimers(userTaskId);
         dbService.completeActivity(userTaskId);
         dbService.completeUserTask(userTaskId);
 
         log.info("{}/{}: Completing {}: {}/{}", processInstanceId, token, activity.getType(), userTaskId, activity.getBpmnElementId());
-
-        ProcessInstance processInstance = dbService.getProcessInstance(processInstanceId);
-        BpmnProcessDefinitionModel bpmn = bpmnService.getProcessDefinitionModelById(processInstance.getProcessDefinitionId());
-        BpmnElementModel bpmnElement = bpmn.getElement(activity.getBpmnElementId());
 
         advance(processInstanceId, token, bpmn, bpmnElement);
     }
@@ -702,12 +745,13 @@ public class ActivityServiceImpl implements ActivityService {
         UUID processInstanceId = activity.getProcessInstanceId();
         UUID token = activity.getToken();
 
-        dbService.setVariables(processInstanceId, variables);
-
         ProcessInstance processInstance = dbService.getProcessInstance(processInstanceId);
         BpmnProcessDefinitionModel bpmn = bpmnService.getProcessDefinitionModelById(processInstance.getProcessDefinitionId());
         BpmnElementModel bpmnElement = bpmn.getElement(activity.getBpmnElementId());
         MultiInstanceExtensionModel multiInstance = bpmnElement.getExtensions().getMultiInstanceExtension();
+
+        // The output mapping decides what the instance writes; outputElement still reads the request.
+        dbService.setVariables(processInstanceId, mappedOutput(bpmnElement, processInstanceId, variables));
 
         if (multiInstance.getOutputCollection() != null && multiInstance.getOutputElement() != null) {
             Object out = scriptService.evaluateExpression(stripExpression(multiInstance.getOutputElement()), variables);
@@ -889,32 +933,45 @@ public class ActivityServiceImpl implements ActivityService {
             log.info("{}/{}: Process instance waits for {} open activities", processInstanceId, tokenId, open);
             return;
         }
+
+        UUID parentActivityId = pi.getParentActivityId();
+        Activity parentActivity = parentActivityId == null ? null : dbService.getActivityForUpdate(parentActivityId);
+        if (parentActivity != null && parentActivity.getCompletedAt() != null) {
+            // The call activity was interrupted (by a boundary timer): the parent does not continue from here.
+            dbService.completeProcessInstance(processInstanceId);
+            log.info("{}/{}: Completing process instance; parent {} {}/{} is already {}, not continuing it", processInstanceId, tokenId, parentActivity.getType(), parentActivityId, parentActivity.getBpmnElementId(), parentActivity.getStatus());
+            return;
+        }
+
+        BpmnProcessDefinitionModel parentBpmn = null;
+        BpmnElementModel parentBpmnElement = null;
+        List<ProcessVariable> toParent = null;
+        if (parentActivity != null) {
+            ProcessInstance parentProcessInstance = dbService.getProcessInstance(parentActivity.getProcessInstanceId());
+            parentBpmn = bpmnService.getProcessDefinitionModelById(parentProcessInstance.getProcessDefinitionId());
+            parentBpmnElement = parentBpmn.getElement(parentActivity.getBpmnElementId());
+            // Computed before anything completes: a failing output mapping of the call activity rejects
+            // the command that ended the child, and the child stays where it was. The error belongs to
+            // the call activity, not to this end event, so it must not become an incident here.
+            try {
+                toParent = mappedOutput(parentBpmnElement, parentActivity.getProcessInstanceId(), dbService.getVariables(processInstanceId));
+            } catch (VariableMappingException e) {
+                throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_CONTENT, e.getMessage(), e);
+            }
+        }
+
         dbService.completeProcessInstance(processInstanceId);
         log.info("{}/{}: Completing process instance", processInstanceId, tokenId);
 
-        UUID parentActivityId = pi.getParentActivityId();
-        if (parentActivityId != null) {
-            Activity parentActivity = dbService.getActivityForUpdate(parentActivityId);
-            if (parentActivity.getCompletedAt() != null) {
-                // The call activity was interrupted (by a boundary timer): the parent does not continue from here.
-                log.info("{}/{}: Parent {} {}/{} is already {}, not continuing it", processInstanceId, tokenId, parentActivity.getType(), parentActivityId, parentActivity.getBpmnElementId(), parentActivity.getStatus());
-                return;
-            }
+        if (parentActivity != null) {
             dbService.cancelTimers(parentActivityId);
             dbService.completeActivity(parentActivityId);
 
             UUID parentProcessInstanceId = parentActivity.getProcessInstanceId();
-            ProcessInstance parentProcessInstance = dbService.getProcessInstance(parentActivity.getProcessInstanceId());
-            UUID parentProcessDefinitionId = parentProcessInstance.getProcessDefinitionId();
             UUID parentToken = parentActivity.getToken();
-            BpmnProcessDefinitionModel parentBpmn = bpmnService.getProcessDefinitionModelById(parentProcessDefinitionId);
-
-            List<ProcessVariable> variables = dbService.getVariables(processInstanceId);
-            dbService.setVariables(parentProcessInstanceId, variables);
+            dbService.setVariables(parentProcessInstanceId, toParent);
 
             log.info("{}/{}: Completing {}: {}/{}", parentProcessInstanceId, parentToken, parentActivity.getType(), parentActivityId, parentActivity.getBpmnElementId());
-
-            BpmnElementModel parentBpmnElement = parentBpmn.getElement(parentActivity.getBpmnElementId());
 
             advance(parentProcessInstanceId, parentToken, parentBpmn, parentBpmnElement);
         }

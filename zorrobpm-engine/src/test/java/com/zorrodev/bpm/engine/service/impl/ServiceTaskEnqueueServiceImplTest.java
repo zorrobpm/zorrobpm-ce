@@ -10,10 +10,10 @@ import com.zorrodev.bpm.engine.bpmn.model.BpmnProcessDefinitionModel;
 import com.zorrodev.bpm.engine.bpmn.model.ServiceTaskExtensionModel;
 import com.zorrodev.bpm.engine.dto.Activity;
 import com.zorrodev.bpm.engine.dto.ServiceTaskRetryState;
-import com.zorrodev.bpm.engine.bpmn.model.InputMappingModel;
-import com.zorrodev.bpm.engine.exception.InputMappingException;
+import com.zorrodev.bpm.contract.exception.VariableMappingException;
+import com.zorrodev.bpm.engine.bpmn.model.VariableMappingModel;
 import com.zorrodev.bpm.engine.service.InputMappingFailureService;
-import com.zorrodev.bpm.engine.service.InputMappingService;
+import com.zorrodev.bpm.engine.service.VariableMappingService;
 import com.zorrodev.bpm.engine.service.BpmnService;
 import com.zorrodev.bpm.engine.service.DBService;
 import com.zorrodev.bpm.engine.service.JobDetailFactory;
@@ -42,14 +42,14 @@ class ServiceTaskEnqueueServiceImplTest {
     @Mock private DBService dbService;
     @Mock private BpmnService bpmnService;
     @Mock private ApplicationEventPublisher publisher;
-    @Mock private InputMappingService inputMappingService;
+    @Mock private VariableMappingService variableMappingService;
     @Mock private InputMappingFailureService inputMappingFailureService;
 
     private ServiceTaskEnqueueServiceImpl service;
 
     @BeforeEach
     void initSync() {
-        service = new ServiceTaskEnqueueServiceImpl(new JobDetailFactory(dbService, bpmnService, inputMappingService), publisher, inputMappingFailureService);
+        service = new ServiceTaskEnqueueServiceImpl(new JobDetailFactory(dbService, bpmnService, variableMappingService), publisher, inputMappingFailureService);
         TransactionSynchronizationManager.initSynchronization();
     }
 
@@ -126,11 +126,11 @@ class ServiceTaskEnqueueServiceImplTest {
         UUID processInstanceId = UUID.randomUUID();
         UUID processDefinitionId = UUID.randomUUID();
         BpmnProcessDefinitionModel bpmn = charge("charge", processDefinitionId, serviceTaskId, processInstanceId);
-        InputMappingModel mapping = new InputMappingModel(List.of(new InputMappingModel.Input("amount", "order.total", true)));
+        VariableMappingModel mapping = new VariableMappingModel(List.of(new VariableMappingModel.Mapping("amount", "order.total", true)));
         bpmn.getElement("charge").getExtensions().setInputMapping(mapping);
         List<ProcessVariable> instanceVariables = List.of(newVar("order", "{\"total\":100}", ProcessVariableType.JSON), newVar("customerId", "c1", ProcessVariableType.STRING));
         when(dbService.getVariables(processInstanceId)).thenReturn(instanceVariables);
-        when(inputMappingService.evaluate("charge", mapping, instanceVariables)).thenReturn(List.of(newVar("amount", "100", ProcessVariableType.LONG)));
+        when(variableMappingService.evaluate("charge", VariableMappingService.Kind.INPUT, mapping, instanceVariables)).thenReturn(List.of(newVar("amount", "100", ProcessVariableType.LONG)));
         when(dbService.getServiceTaskRetryState(serviceTaskId)).thenReturn(new ServiceTaskRetryState(0, null));
 
         service.enqueueAfterCommit(serviceTaskId);
@@ -148,11 +148,11 @@ class ServiceTaskEnqueueServiceImplTest {
         UUID processInstanceId = UUID.randomUUID();
         UUID processDefinitionId = UUID.randomUUID();
         BpmnProcessDefinitionModel bpmn = charge("charge", processDefinitionId, serviceTaskId, processInstanceId);
-        InputMappingModel mapping = new InputMappingModel(List.of(new InputMappingModel.Input("amount", "assert(order.total, order.total != null)", true)));
+        VariableMappingModel mapping = new VariableMappingModel(List.of(new VariableMappingModel.Mapping("amount", "assert(order.total, order.total != null)", true)));
         bpmn.getElement("charge").getExtensions().setInputMapping(mapping);
         when(dbService.getVariables(processInstanceId)).thenReturn(List.of());
-        InputMappingException failure = new InputMappingException("Input 'amount' of 'charge': assertion failed", null);
-        when(inputMappingService.evaluate("charge", mapping, List.of())).thenThrow(failure);
+        VariableMappingException failure = new VariableMappingException("Input 'amount' of 'charge': assertion failed", null);
+        when(variableMappingService.evaluate("charge", VariableMappingService.Kind.INPUT, mapping, List.of())).thenThrow(failure);
 
         service.enqueueAfterCommit(serviceTaskId);
         TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);

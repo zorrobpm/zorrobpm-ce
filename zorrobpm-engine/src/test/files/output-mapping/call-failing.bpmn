@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_om-call-failing" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="om-call-failing" name="Call activity with a failing output mapping" isExecutable="true">
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>toStep</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:callActivity id="call" name="Call">
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="om-child" />
+        <zeebe:ioMapping><zeebe:output source="=assert(result, result != null)" target="childResult" /></zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>toStep</bpmn:incoming>
+      <bpmn:outgoing>toDone</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:endEvent id="done">
+      <bpmn:incoming>toDone</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="toStep" sourceRef="start" targetRef="call" />
+    <bpmn:sequenceFlow id="toDone" sourceRef="call" targetRef="done" />
+  </bpmn:process>
+</bpmn:definitions>

@@ -3,7 +3,7 @@ package com.zorrodev.bpm.engine.service;
 import com.zorrodev.bpm.contract.exception.ServiceTaskNotFoundException;
 import com.zorrodev.bpm.contract.exception.TaskNotActiveException;
 import com.zorrodev.bpm.engine.dto.RetryOverride;
-import com.zorrodev.bpm.engine.exception.InputMappingException;
+import com.zorrodev.bpm.contract.exception.VariableMappingException;
 import com.zorrodev.bpm.exchange.ErrorReport;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
@@ -36,7 +36,7 @@ public class InputMappingFailureService {
     }
 
     /** Opens an incident {@value #ERROR_CODE} on the service task; a closed or already failed task is left alone. */
-    public void reportJobInputMappingFailure(UUID serviceTaskId, InputMappingException e) {
+    public void reportJobInputMappingFailure(UUID serviceTaskId, VariableMappingException e) {
         log.warn("Input mapping of service task {} failed, no job is published: {}", serviceTaskId, e.getMessage());
         try {
             transaction.executeWithoutResult(status ->

@@ -11,7 +11,7 @@ import com.zorrodev.bpm.engine.entity.IncidentEntity;
 import com.zorrodev.bpm.engine.entity.ProcessInstanceEntity;
 import com.zorrodev.bpm.engine.entity.TimerStatus;
 import com.zorrodev.bpm.engine.entity.UserTaskEntity;
-import com.zorrodev.bpm.engine.exception.InputMappingException;
+import com.zorrodev.bpm.contract.exception.VariableMappingException;
 import com.zorrodev.bpm.engine.listener.ServiceTaskCompleteListener;
 import com.zorrodev.bpm.engine.listener.ServiceTaskFailedListener;
 import com.zorrodev.bpm.engine.repository.ActivityRepository;
@@ -224,7 +224,7 @@ public class InputMappingIntegrationTests {
         UUID instance = start(SERVICE_FAILING, order(100));
         UUID chargeId = chargeId(instance);
         inTx(() -> dbService.setVariables(instance, List.of(variable("order", "abc"))));
-        InputMappingException failure = catchThrowableOfType(InputMappingException.class, () -> job(chargeId));
+        VariableMappingException failure = catchThrowableOfType(VariableMappingException.class, () -> job(chargeId));
         assertThat(failure).isNotNull();
 
         inputMappingFailureService.reportJobInputMappingFailure(chargeId, failure);

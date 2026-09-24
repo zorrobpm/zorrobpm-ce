@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_im-service-failing" targetNamespace="http://bpmn.io/schema/bpmn">
-  <bpmn:process id="im-service-failing" name="Service task with a failing input mapping" isExecutable="true">
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_om-service" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="om-service" name="Service task with output mapping" isExecutable="true">
     <bpmn:startEvent id="start">
       <bpmn:outgoing>toStep</bpmn:outgoing>
     </bpmn:startEvent>
@@ -9,8 +9,9 @@
         <zeebe:taskDefinition type="charge" retries="2" />
         <zeebe:properties><zeebe:property name="retryTimeout" value="PT1M" /></zeebe:properties>
         <zeebe:ioMapping>
-          <zeebe:input source="=assert(order.total, order.total != null)" target="amount" />
-          <zeebe:input source="KZT" target="currency" />
+          <zeebe:input source="=order.total" target="amount" />
+          <zeebe:output source="=result.transactionId" target="paymentId" />
+          <zeebe:output source="=order.total + fee" target="charged" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>toStep</bpmn:incoming>

@@ -2,9 +2,9 @@ package com.zorrodev.bpm.engine.service.impl;
 
 import com.zorrodev.bpm.contract.model.ProcessVariable;
 import com.zorrodev.bpm.contract.model.ProcessVariableType;
-import com.zorrodev.bpm.engine.bpmn.model.InputMappingModel;
-import com.zorrodev.bpm.engine.exception.InputMappingException;
-import com.zorrodev.bpm.engine.service.InputMappingService;
+import com.zorrodev.bpm.contract.exception.VariableMappingException;
+import com.zorrodev.bpm.engine.bpmn.model.VariableMappingModel;
+import com.zorrodev.bpm.engine.service.VariableMappingService;
 import com.zorrodev.bpm.engine.service.ScriptService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -19,21 +19,21 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-public class InputMappingServiceImpl implements InputMappingService {
+public class VariableMappingServiceImpl implements VariableMappingService {
 
     private final ScriptService scriptService;
     private final ObjectMapper objectMapper;
 
     @Override
-    public List<ProcessVariable> evaluate(String elementId, InputMappingModel mapping, List<ProcessVariable> context) {
-        List<ProcessVariable> result = new ArrayList<>(mapping.inputs().size());
-        for (InputMappingModel.Input input : mapping.inputs()) {
+    public List<ProcessVariable> evaluate(String elementId, Kind kind, VariableMappingModel mapping, List<ProcessVariable> context) {
+        List<ProcessVariable> result = new ArrayList<>(mapping.mappings().size());
+        for (VariableMappingModel.Mapping input : mapping.mappings()) {
             try {
                 result.add(input.expression()
                     ? toVariable(input.target(), scriptService.evaluateExpression(input.source(), context))
                     : variable(input.target(), ProcessVariableType.STRING, input.source()));
             } catch (RuntimeException e) {
-                throw new InputMappingException("Input '" + input.target() + "' of '" + elementId + "': " + e.getMessage(), e);
+                throw new VariableMappingException(kind.label() + " '" + input.target() + "' of '" + elementId + "': " + e.getMessage(), e);
             }
         }
         return result;
