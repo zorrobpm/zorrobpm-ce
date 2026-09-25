@@ -1,6 +1,8 @@
 package com.zorrodev.bpm.grpc;
 
+import com.zorrodev.bpm.contract.exception.VariableMappingException;
 import com.zorrodev.bpm.engine.service.DBService;
+import com.zorrodev.bpm.engine.service.InputMappingFailureService;
 import com.zorrodev.bpm.engine.service.JobDetailFactory;
 import com.zorrodev.bpm.exchange.JobDetailModel;
 import com.zorrodev.bpm.exchange.ServiceTaskEnqueued;
@@ -48,6 +50,7 @@ public class GrpcJobDispatcher implements DisposableBean {
 
     private final DBService dbService;
     private final JobDetailFactory jobDetailFactory;
+    private final InputMappingFailureService inputMappingFailureService;
     private final TransactionTemplate transaction;
     private final Clock clock;
     private final GrpcTransportProperties properties;
@@ -64,10 +67,12 @@ public class GrpcJobDispatcher implements DisposableBean {
     private int rotation;
 
     public GrpcJobDispatcher(DBService dbService, JobDetailFactory jobDetailFactory,
+                             InputMappingFailureService inputMappingFailureService,
                              PlatformTransactionManager transactionManager, Clock clock,
                              GrpcTransportProperties properties) {
         this.dbService = dbService;
         this.jobDetailFactory = jobDetailFactory;
+        this.inputMappingFailureService = inputMappingFailureService;
         this.transaction = new TransactionTemplate(transactionManager);
         this.transaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         this.clock = clock;
@@ -198,8 +203,15 @@ public class GrpcJobDispatcher implements DisposableBean {
                 continue;
             }
             Instant lockedUntil = clock.instant().plus(subscription.lockTimeout);
-            JobDetailModel detail = transaction.execute(status ->
-                dbService.lockServiceTaskJob(serviceTaskId, subscription.owner, lockedUntil) ? jobDetailFactory.create(serviceTaskId) : null);
+            JobDetailModel detail;
+            try {
+                detail = transaction.execute(status ->
+                    dbService.lockServiceTaskJob(serviceTaskId, subscription.owner, lockedUntil) ? jobDetailFactory.create(serviceTaskId) : null);
+            } catch (VariableMappingException e) {
+                // The lock is rolled back with the transaction; the incident takes the job out of the ready ones.
+                inputMappingFailureService.reportJobInputMappingFailure(serviceTaskId, e);
+                continue;
+            }
             if (detail == null) {
                 // Taken by another stream or node, or no longer ready.
                 continue;

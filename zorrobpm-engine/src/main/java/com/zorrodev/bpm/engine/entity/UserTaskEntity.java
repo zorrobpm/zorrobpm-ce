@@ -27,4 +27,6 @@ public class UserTaskEntity {
     private Integer loopTotal;
     private String loopItem;
     private Instant canceledAt;
+    /** The evaluated input mapping as a JSON array of variables; {@code null} without a mapping. */
+    private String inputs;
 }

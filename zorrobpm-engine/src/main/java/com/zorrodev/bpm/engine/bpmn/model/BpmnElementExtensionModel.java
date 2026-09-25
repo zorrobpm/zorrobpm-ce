@@ -16,4 +16,8 @@ public class BpmnElementExtensionModel {
     private MultiInstanceExtensionModel multiInstanceExtension;
     private BoundaryEventExtensionModel boundaryEventExtension;
     private ErrorEventExtensionModel errorEventExtension;
+    /** {@code null} when the element has no input mapping. */
+    private VariableMappingModel inputMapping;
+    /** {@code null} when the element has no output mapping. */
+    private VariableMappingModel outputMapping;
 }

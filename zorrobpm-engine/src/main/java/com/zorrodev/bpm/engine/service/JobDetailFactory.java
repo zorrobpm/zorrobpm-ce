@@ -1,26 +1,39 @@
 package com.zorrodev.bpm.engine.service;
 
 import com.zorrodev.bpm.contract.model.ProcessInstance;
+import com.zorrodev.bpm.engine.bpmn.model.BpmnElementExtensionModel;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnElementModel;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnProcessDefinitionModel;
+import com.zorrodev.bpm.contract.exception.VariableMappingException;
+import com.zorrodev.bpm.engine.bpmn.model.VariableMappingModel;
 import com.zorrodev.bpm.engine.dto.Activity;
 import com.zorrodev.bpm.exchange.JobDetailModel;
 import com.zorrodev.bpm.exchange.ProcessVariable;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-/** Builds the job a worker gets for a service task: the same data on every transport. */
+/**
+ * Builds the job a worker gets for a service task: the same data on every transport. The variables
+ * of the job are the input mapping of the service task evaluated on the current instance variables,
+ * or all of them when the task has no mapping.
+ */
 @Component
 @RequiredArgsConstructor
 public class JobDetailFactory {
 
     private final DBService dbService;
     private final BpmnService bpmnService;
+    private final VariableMappingService variableMappingService;
 
+    /**
+     * @throws VariableMappingException when the input mapping of the service task cannot be evaluated
+     */
     public JobDetailModel create(UUID serviceTaskId) {
         Activity activity = dbService.getActivity(serviceTaskId);
         ProcessInstance pi = dbService.getProcessInstance(activity.getProcessInstanceId());
@@ -32,7 +45,12 @@ public class JobDetailFactory {
         BpmnElementModel element = bpmn.getElement(bpmnElementId);
         String job = element.getExtensions().getServiceTaskExtension().getJob();
 
-        Map<String, ProcessVariable> variables = dbService.getVariables(processInstanceId).stream()
+        List<com.zorrodev.bpm.contract.model.ProcessVariable> instanceVariables = dbService.getVariables(processInstanceId);
+        VariableMappingModel mapping = Optional.ofNullable(element.getExtensions()).map(BpmnElementExtensionModel::getInputMapping).orElse(null);
+        List<com.zorrodev.bpm.contract.model.ProcessVariable> jobVariables = mapping == null
+            ? instanceVariables
+            : variableMappingService.evaluate(bpmnElementId, VariableMappingService.Kind.INPUT, mapping, instanceVariables);
+        Map<String, ProcessVariable> variables = jobVariables.stream()
             .collect(Collectors.toMap(com.zorrodev.bpm.contract.model.ProcessVariable::getName, pv -> {
                 ProcessVariable v = new ProcessVariable();
                 v.setName(pv.getName());

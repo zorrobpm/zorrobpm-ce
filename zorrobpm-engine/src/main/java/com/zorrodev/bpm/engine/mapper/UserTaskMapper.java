@@ -1,5 +1,6 @@
 package com.zorrodev.bpm.engine.mapper;
 
+import com.zorrodev.bpm.contract.model.ProcessVariable;
 import com.zorrodev.bpm.contract.model.UserTask;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnElementModel;
 import com.zorrodev.bpm.engine.entity.UserTaskCandidateEntity;
@@ -9,6 +10,8 @@ import com.zorrodev.bpm.engine.repository.UserTaskCandidateRepository;
 import com.zorrodev.bpm.engine.service.BpmnService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
 
@@ -18,6 +21,7 @@ public class UserTaskMapper {
 
     private final BpmnService bpmnService;
     private final UserTaskCandidateRepository userTaskCandidateRepository;
+    private final ObjectMapper objectMapper;
 
     public UserTask toDTO(UserTaskEntity entity) {
         BpmnElementModel element = bpmnService.getProcessDefinitionModelById(entity.getProcessDefinitionId()).getElement(entity.getBpmnElementId());
@@ -35,11 +39,19 @@ public class UserTaskMapper {
         dto.setLoopTotal(entity.getLoopTotal());
         dto.setLoopItem(entity.getLoopItem());
         dto.setCanceledAt(entity.getCanceledAt());
+        dto.setInputs(inputs(entity.getInputs()));
 
         List<UserTaskCandidateEntity> candidates = userTaskCandidateRepository.findByTaskId(entity.getId());
         dto.setCandidateGroups(candidateValues(candidates, UserTaskCandidateType.GROUP));
         dto.setCandidateUsers(candidateValues(candidates, UserTaskCandidateType.USER));
         return dto;
+    }
+
+    private List<ProcessVariable> inputs(String json) {
+        if (json == null) {
+            return List.of();
+        }
+        return objectMapper.readValue(json, new TypeReference<List<ProcessVariable>>() {});
     }
 
     private static List<String> candidateValues(List<UserTaskCandidateEntity> candidates, UserTaskCandidateType type) {

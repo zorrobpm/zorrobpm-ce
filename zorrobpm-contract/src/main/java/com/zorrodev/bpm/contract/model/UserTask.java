@@ -26,4 +26,6 @@ public class UserTask {
     private Integer loopTotal;
     private String loopItem;
     private Instant canceledAt;
+    /** The input mapping of the task evaluated when it was created; empty without a mapping. */
+    private List<ProcessVariable> inputs = new ArrayList<>();
 }

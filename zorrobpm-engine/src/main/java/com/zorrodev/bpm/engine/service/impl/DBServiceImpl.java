@@ -188,11 +188,21 @@ public class DBServiceImpl implements DBService {
 
     @Override
     public void createUserTask(UUID activityId, BpmnElementModel element, ResolvedAssignment assignment) {
-        createUserTask(activityId, element, null, null, null, assignment);
+        createUserTask(activityId, element, null, null, null, assignment, null);
+    }
+
+    @Override
+    public void createUserTask(UUID activityId, BpmnElementModel element, ResolvedAssignment assignment, String inputs) {
+        createUserTask(activityId, element, null, null, null, assignment, inputs);
     }
 
     @Override
     public void createUserTask(UUID activityId, BpmnElementModel element, Integer loopIndex, Integer loopTotal, String loopItem, ResolvedAssignment assignment) {
+        createUserTask(activityId, element, loopIndex, loopTotal, loopItem, assignment, null);
+    }
+
+    @Override
+    public void createUserTask(UUID activityId, BpmnElementModel element, Integer loopIndex, Integer loopTotal, String loopItem, ResolvedAssignment assignment, String inputs) {
         ActivityEntity activity = activityRepository.findById(activityId).orElseThrow();
         UserTaskEntity entity = new UserTaskEntity();
         entity.setId(activity.getId());
@@ -217,6 +227,7 @@ public class DBServiceImpl implements DBService {
         entity.setLoopIndex(loopIndex);
         entity.setLoopTotal(loopTotal);
         entity.setLoopItem(loopItem);
+        entity.setInputs(inputs);
 
         userTaskRepository.save(entity);
 

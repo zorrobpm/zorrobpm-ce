@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_om-child" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="om-child" name="Child process" isExecutable="true">
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>toStep</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="childTask" name="Child task">
+      <bpmn:incoming>toStep</bpmn:incoming>
+      <bpmn:outgoing>toDone</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="done">
+      <bpmn:incoming>toDone</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="toStep" sourceRef="start" targetRef="childTask" />
+    <bpmn:sequenceFlow id="toDone" sourceRef="childTask" targetRef="done" />
+  </bpmn:process>
+</bpmn:definitions>

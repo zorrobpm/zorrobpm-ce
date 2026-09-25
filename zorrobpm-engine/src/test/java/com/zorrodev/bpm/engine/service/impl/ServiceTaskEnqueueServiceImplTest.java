@@ -10,6 +10,10 @@ import com.zorrodev.bpm.engine.bpmn.model.BpmnProcessDefinitionModel;
 import com.zorrodev.bpm.engine.bpmn.model.ServiceTaskExtensionModel;
 import com.zorrodev.bpm.engine.dto.Activity;
 import com.zorrodev.bpm.engine.dto.ServiceTaskRetryState;
+import com.zorrodev.bpm.contract.exception.VariableMappingException;
+import com.zorrodev.bpm.engine.bpmn.model.VariableMappingModel;
+import com.zorrodev.bpm.engine.service.InputMappingFailureService;
+import com.zorrodev.bpm.engine.service.VariableMappingService;
 import com.zorrodev.bpm.engine.service.BpmnService;
 import com.zorrodev.bpm.engine.service.DBService;
 import com.zorrodev.bpm.engine.service.JobDetailFactory;
@@ -38,12 +42,14 @@ class ServiceTaskEnqueueServiceImplTest {
     @Mock private DBService dbService;
     @Mock private BpmnService bpmnService;
     @Mock private ApplicationEventPublisher publisher;
+    @Mock private VariableMappingService variableMappingService;
+    @Mock private InputMappingFailureService inputMappingFailureService;
 
     private ServiceTaskEnqueueServiceImpl service;
 
     @BeforeEach
     void initSync() {
-        service = new ServiceTaskEnqueueServiceImpl(new JobDetailFactory(dbService, bpmnService), publisher);
+        service = new ServiceTaskEnqueueServiceImpl(new JobDetailFactory(dbService, bpmnService, variableMappingService), publisher, inputMappingFailureService);
         TransactionSynchronizationManager.initSynchronization();
     }
 
@@ -112,6 +118,72 @@ class ServiceTaskEnqueueServiceImplTest {
         assertThat(detail.getVariables().get("name").getType()).isEqualTo(ProcessVariableType.STRING.toString());
         assertThat(detail.getVariables().get("age").getValue()).isEqualTo("30");
         assertThat(detail.getVariables().get("age").getType()).isEqualTo(ProcessVariableType.LONG.toString());
+    }
+
+    @Test
+    void enqueueAfterCommit_jobCarriesOnlyTheMappedVariables() {
+        UUID serviceTaskId = UUID.randomUUID();
+        UUID processInstanceId = UUID.randomUUID();
+        UUID processDefinitionId = UUID.randomUUID();
+        BpmnProcessDefinitionModel bpmn = charge("charge", processDefinitionId, serviceTaskId, processInstanceId);
+        VariableMappingModel mapping = new VariableMappingModel(List.of(new VariableMappingModel.Mapping("amount", "order.total", true)));
+        bpmn.getElement("charge").getExtensions().setInputMapping(mapping);
+        List<ProcessVariable> instanceVariables = List.of(newVar("order", "{\"total\":100}", ProcessVariableType.JSON), newVar("customerId", "c1", ProcessVariableType.STRING));
+        when(dbService.getVariables(processInstanceId)).thenReturn(instanceVariables);
+        when(variableMappingService.evaluate("charge", VariableMappingService.Kind.INPUT, mapping, instanceVariables)).thenReturn(List.of(newVar("amount", "100", ProcessVariableType.LONG)));
+        when(dbService.getServiceTaskRetryState(serviceTaskId)).thenReturn(new ServiceTaskRetryState(0, null));
+
+        service.enqueueAfterCommit(serviceTaskId);
+        TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
+
+        ArgumentCaptor<ServiceTaskEnqueued> captor = ArgumentCaptor.forClass(ServiceTaskEnqueued.class);
+        org.mockito.Mockito.verify(publisher).publishEvent(captor.capture());
+        assertThat(captor.getValue().getDetail().getVariables()).containsOnlyKeys("amount");
+        assertThat(captor.getValue().getDetail().getVariables().get("amount").getValue()).isEqualTo("100");
+    }
+
+    @Test
+    void enqueueAfterCommit_reportsAFailedMappingInsteadOfPublishing() {
+        UUID serviceTaskId = UUID.randomUUID();
+        UUID processInstanceId = UUID.randomUUID();
+        UUID processDefinitionId = UUID.randomUUID();
+        BpmnProcessDefinitionModel bpmn = charge("charge", processDefinitionId, serviceTaskId, processInstanceId);
+        VariableMappingModel mapping = new VariableMappingModel(List.of(new VariableMappingModel.Mapping("amount", "assert(order.total, order.total != null)", true)));
+        bpmn.getElement("charge").getExtensions().setInputMapping(mapping);
+        when(dbService.getVariables(processInstanceId)).thenReturn(List.of());
+        VariableMappingException failure = new VariableMappingException("Input 'amount' of 'charge': assertion failed", null);
+        when(variableMappingService.evaluate("charge", VariableMappingService.Kind.INPUT, mapping, List.of())).thenThrow(failure);
+
+        service.enqueueAfterCommit(serviceTaskId);
+        TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
+
+        org.mockito.Mockito.verifyNoInteractions(publisher);
+        org.mockito.Mockito.verify(inputMappingFailureService).reportJobInputMappingFailure(serviceTaskId, failure);
+    }
+
+    private BpmnProcessDefinitionModel charge(String elementId, UUID processDefinitionId, UUID serviceTaskId, UUID processInstanceId) {
+        Activity activity = new Activity();
+        activity.setId(serviceTaskId);
+        activity.setProcessInstanceId(processInstanceId);
+        activity.setBpmnElementId(elementId);
+        activity.setType(BpmnElementType.SERVICE_TASK);
+        ProcessInstance pi = new ProcessInstance();
+        pi.setId(processInstanceId);
+        pi.setProcessDefinitionId(processDefinitionId);
+        ServiceTaskExtensionModel ext = new ServiceTaskExtensionModel();
+        ext.setJob(elementId);
+        BpmnElementExtensionModel extensions = new BpmnElementExtensionModel();
+        extensions.setServiceTaskExtension(ext);
+        BpmnElementModel element = new BpmnElementModel();
+        element.setId(elementId);
+        element.setType(BpmnElementType.SERVICE_TASK);
+        element.setExtensions(extensions);
+        BpmnProcessDefinitionModel bpmn = new BpmnProcessDefinitionModel();
+        bpmn.addElement(element);
+        when(dbService.getActivity(serviceTaskId)).thenReturn(activity);
+        when(dbService.getProcessInstance(processInstanceId)).thenReturn(pi);
+        when(bpmnService.getProcessDefinitionModelById(processDefinitionId)).thenReturn(bpmn);
+        return bpmn;
     }
 
     @Test

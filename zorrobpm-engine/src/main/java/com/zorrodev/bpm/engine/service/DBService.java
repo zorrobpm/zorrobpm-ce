@@ -46,7 +46,12 @@ public interface DBService {
 
     void createUserTask(UUID activityId, BpmnElementModel element, ResolvedAssignment assignment);
 
+    /** @param inputs the evaluated input mapping as a JSON array of variables, or {@code null} without a mapping */
+    void createUserTask(UUID activityId, BpmnElementModel element, ResolvedAssignment assignment, String inputs);
+
     void createUserTask(UUID activityId, BpmnElementModel element, Integer loopIndex, Integer loopTotal, String loopItem, ResolvedAssignment assignment);
+
+    void createUserTask(UUID activityId, BpmnElementModel element, Integer loopIndex, Integer loopTotal, String loopItem, ResolvedAssignment assignment, String inputs);
 
     void completeUserTask(UUID serviceTaskId);
 

@@ -8,6 +8,8 @@ import com.zorrodev.bpm.engine.bpmn.model.TimerEventExtensionModel;
 import com.zorrodev.bpm.engine.bpmn.model.TimerEventType;
 import com.zorrodev.bpm.engine.bpmn.xml.*;
 import com.zorrodev.bpm.engine.bpmn.xml.extension.CalledElementModel;
+import com.zorrodev.bpm.engine.bpmn.xml.extension.IoMappingEntryModel;
+import com.zorrodev.bpm.engine.bpmn.xml.extension.IoMappingModel;
 import com.zorrodev.bpm.engine.bpmn.xml.extension.UserTaskExtensionModel;
 import com.zorrodev.bpm.engine.bpmn.xml.extension.ZeebeLoopCharacteristicsModel;
 import com.zorrodev.bpm.engine.bpmn.model.MultiInstanceExtensionModel;
@@ -17,6 +19,7 @@ import com.zorrodev.bpm.engine.bpmn.model.BpmnElementModel;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnElementType;
 import com.zorrodev.bpm.engine.bpmn.model.BpmnFlowModel;
 import com.zorrodev.bpm.engine.bpmn.model.ExclusiveGatewayExtensionModel;
+import com.zorrodev.bpm.engine.bpmn.model.VariableMappingModel;
 import com.zorrodev.bpm.engine.bpmn.model.ServiceTaskExtensionModel;
 import com.zorrodev.bpm.engine.service.BpmnParseService;
 import jakarta.xml.bind.JAXB;
@@ -27,6 +30,7 @@ import java.io.StringReader;
 import java.time.Duration;
 import java.time.format.DateTimeParseException;
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -352,7 +356,54 @@ public class BpmnParseServiceImpl implements BpmnParseService {
             element.getExtensions().getServiceTaskExtension().setRetries(parseRetries(serviceTask));
             element.getExtensions().getServiceTaskExtension().setRetryTimeout(parseRetryTimeout(serviceTask));
         }
+        setMappings(element, "Service task", serviceTask.getExtensionElements());
         return element;
+    }
+
+    /**
+     * {@code zeebe:ioMapping}: a {@code zeebe:input} per input variable and a {@code zeebe:output} per
+     * output variable. A source with a leading {@code =} is a FEEL expression, otherwise a string
+     * literal. An {@code ioMapping} without entries of a kind is no mapping of that kind.
+     */
+    private static void setMappings(BpmnElementModel element, String kind, ExtensionElements extensionElements) {
+        IoMappingModel io = Optional.ofNullable(extensionElements).map(ExtensionElements::getIoMapping).orElse(null);
+        if (io == null) {
+            return;
+        }
+        VariableMappingModel inputs = parseMapping(kind, element.getId(), io.getInputs(), "input");
+        VariableMappingModel outputs = parseMapping(kind, element.getId(), io.getOutputs(), "output");
+        if (inputs == null && outputs == null) {
+            return;
+        }
+        if (element.getExtensions() == null) {
+            element.setExtensions(new BpmnElementExtensionModel());
+        }
+        element.getExtensions().setInputMapping(inputs);
+        element.getExtensions().setOutputMapping(outputs);
+    }
+
+    static VariableMappingModel parseMapping(String kind, String id, List<IoMappingEntryModel> entries, String entryKind) {
+        if (entries == null || entries.isEmpty()) {
+            return null;
+        }
+        List<VariableMappingModel.Mapping> result = new ArrayList<>();
+        Set<String> targets = new HashSet<>();
+        for (IoMappingEntryModel entry : entries) {
+            String target = entry.getTarget() == null ? null : entry.getTarget().trim();
+            if (isBlank(target)) {
+                throw new BpmnParseException(kind + " '" + id + "': " + entryKind + " mapping has an " + entryKind + " without target");
+            }
+            if (isBlank(entry.getSource())) {
+                throw new BpmnParseException(kind + " '" + id + "': " + entryKind + " '" + target + "' has no source");
+            }
+            if (!targets.add(target)) {
+                throw new BpmnParseException(kind + " '" + id + "': " + entryKind + " target '" + target + "' is declared twice");
+            }
+            String source = entry.getSource();
+            boolean expression = source.startsWith("=");
+            result.add(new VariableMappingModel.Mapping(target, expression ? source.substring(1) : source, expression));
+        }
+        return new VariableMappingModel(List.copyOf(result));
     }
 
     static final String RETRY_TIMEOUT_PROPERTY = "retryTimeout";
@@ -440,6 +491,7 @@ public class BpmnParseServiceImpl implements BpmnParseService {
                 }
             }
         }
+        setMappings(element, "User task", userTask.getExtensionElements());
         return element;
     }
 
@@ -558,6 +610,7 @@ public class BpmnParseServiceImpl implements BpmnParseService {
                 element.getExtensions().getCallActivityExtension().setPropagateAllChildVariables(calledElement.getPropagateAllChildVariables());
             }
         }
+        setMappings(element, "Call activity", callActivity.getExtensionElements());
         return element;
     }
 }

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_om-service-error" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="om-service-error" name="Service task with output mapping and error boundary" isExecutable="true">
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>toStep</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="charge" name="Charge">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="charge" />
+        <zeebe:ioMapping><zeebe:output source="=result.transactionId" target="paymentId" /></zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>toStep</bpmn:incoming>
+      <bpmn:outgoing>toDone</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:boundaryEvent id="declined" attachedToRef="charge">
+      <bpmn:outgoing>toDeclined</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="declinedDef" errorRef="Error_Declined" />
+    </bpmn:boundaryEvent>
+    <bpmn:sequenceFlow id="toDeclined" sourceRef="declined" targetRef="handled" />
+    <bpmn:endEvent id="handled"><bpmn:incoming>toDeclined</bpmn:incoming></bpmn:endEvent>
+    <bpmn:endEvent id="done">
+      <bpmn:incoming>toDone</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="toStep" sourceRef="start" targetRef="charge" />
+    <bpmn:sequenceFlow id="toDone" sourceRef="charge" targetRef="done" />
+  </bpmn:process>
+  <bpmn:error id="Error_Declined" name="Declined" errorCode="CARD_DECLINED" />
+</bpmn:definitions>

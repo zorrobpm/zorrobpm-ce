@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_rest-om-user" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="rest-om-user" name="User task with output mapping" isExecutable="true">
+    <bpmn:startEvent id="start"><bpmn:outgoing>toStep</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:userTask id="review" name="Review">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping><zeebe:output source="=assert(decision, decision != null)" target="approved" /></zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>toStep</bpmn:incoming><bpmn:outgoing>toDone</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="done"><bpmn:incoming>toDone</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="toStep" sourceRef="start" targetRef="review" />
+    <bpmn:sequenceFlow id="toDone" sourceRef="review" targetRef="done" />
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_im-service" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="im-service" name="Service task with input mapping" isExecutable="true">
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>toStep</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="charge" name="Charge">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="charge" retries="2" />
+        <zeebe:properties><zeebe:property name="retryTimeout" value="PT1M" /></zeebe:properties>
+        <zeebe:ioMapping>
+          <zeebe:input source="=order.total" target="amount" />
+          <zeebe:input source="KZT" target="currency" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>toStep</bpmn:incoming>
+      <bpmn:outgoing>toDone</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="done">
+      <bpmn:incoming>toDone</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="toStep" sourceRef="start" targetRef="charge" />
+    <bpmn:sequenceFlow id="toDone" sourceRef="charge" targetRef="done" />
+  </bpmn:process>
+</bpmn:definitions>
