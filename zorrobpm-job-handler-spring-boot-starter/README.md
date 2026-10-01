@@ -64,6 +64,9 @@ RabbitMQ itself, it can drop the RabbitMQ health check with `management.health.r
 
 The worker starts even when the engine is down and keeps reconnecting.
 
+Enabling gRPC on the engine, the protocol itself and troubleshooting are covered in the
+[gRPC transport guide](../docs/grpc.md).
+
 ## Delivery is at least once
 
 On both transports a handler can run more than once for the same `serviceTaskId`:

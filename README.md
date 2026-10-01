@@ -4,6 +4,13 @@ A lightweight BPM engine built on Spring Boot. This repository holds the engine,
 contract libraries, the job handler starter for workers, the RabbitMQ and gRPC transports, and the runnable
 `zorrobpm-ce` application.
 
+## Documentation
+
+- [gRPC transport for service task jobs](docs/grpc.md) — enabling it on the engine, connecting workers, the
+  protocol for workers in any language, troubleshooting.
+- [Job handler starter](zorrobpm-job-handler-spring-boot-starter/README.md) — writing service task workers
+  with Spring Boot.
+
 ## Maven artifacts
 
 All libraries are published to Maven Central under the group `com.zorrodev.bpm`:
