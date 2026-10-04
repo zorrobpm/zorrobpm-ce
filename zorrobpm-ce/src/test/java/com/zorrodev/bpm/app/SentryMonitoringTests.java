@@ -42,7 +42,7 @@ class SentryMonitoringTests {
     static void sentry(DynamicPropertyRegistry registry) {
         registry.add("SENTRY_DSN", SENTRY::dsn);
         registry.add("SENTRY_ENVIRONMENT", () -> "test");
-        registry.add("SENTRY_TRACES_SAMPLE_RATE", () -> "0");
+        registry.add("SENTRY_TRACES_SAMPLE_RATE", () -> "1.0");
     }
 
     @AfterAll
@@ -58,7 +58,7 @@ class SentryMonitoringTests {
 
     @Test
     void unhandledFailureIsReportedOnceWithoutPersonalData() throws Exception {
-        HttpResponse<String> response = send(HttpRequest.newBuilder(uri("/test-failure"))
+        HttpResponse<String> response = send(HttpRequest.newBuilder(uri("/test-failure?relatedToUser=900101300123"))
             .header("Content-Type", "application/json")
             .header("Authorization", "Bearer zbpa_token-secret")
             .header("Cookie", "SESSION=cookie-secret")
@@ -84,6 +84,18 @@ class SentryMonitoringTests {
             .doesNotContain("900101300123")
             .doesNotContain("203.0.113.7")
             .doesNotContain("127.0.0.1");
+    }
+
+    @Test
+    void queryStringsStayOutOfSentry() throws Exception {
+        HttpResponse<String> response = send(HttpRequest.newBuilder(
+            uri("/user-tasks?relatedToUser=900101300124&relatedToGroups=managers-secret")).GET());
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        Sentry.flush(5000);
+        assertThat(SENTRY.transactions()).isNotEmpty();
+        assertThat(SENTRY.all()).noneMatch(envelope -> envelope.contains("900101300124"))
+            .noneMatch(envelope -> envelope.contains("managers-secret"));
     }
 
     @Test
