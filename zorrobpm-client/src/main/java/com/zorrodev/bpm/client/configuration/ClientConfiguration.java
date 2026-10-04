@@ -24,7 +24,7 @@ import org.springframework.web.service.invoker.HttpServiceProxyFactory;
  * authorization, which is what the open API of the community application expects.
  *
  * <p>The clients are built from the application's {@link RestClient.Builder} when it has one (Spring
- * Boot provides a prototype bean), so whatever the application customises on it - tracing headers,
+ * Boot 4 provides it with {@code spring-boot-starter-restclient}), so whatever the application customises on it - tracing headers,
  * timeouts, observations - applies to the engine calls too. Without such a bean a plain builder is
  * used.
  */
