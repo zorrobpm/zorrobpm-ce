@@ -100,6 +100,41 @@ topic exchange `zorrobpm.user-task-events` (off by default, `zorrobpm.events.use
 See [docs/user-task-events.md](docs/user-task-events.md) for the routing keys, the message format and the
 delivery guarantees.
 
+## HTTP connector
+
+`zorrobpm-http-connector` is an optional module with a built-in worker for outbound HTTP/REST calls. A service
+task with `zeebe:taskDefinition type="zorrobpm:http"` is executed by this worker: it turns the input mapping of
+the task into the HTTP request and reports the result back to the process, so calling another system does not
+need a worker application of your own.
+
+The worker is off by default and reaches nothing until an administrator allows it. `allowed-hosts` is the
+allowlist of target hosts and an empty value denies everything. Every target URL is checked against that
+allowlist, against the private and reserved IP ranges after DNS resolution, and again on every redirect hop.
+A secret is never taken from the process: an authentication header or query parameter is referenced by name
+(`http.authRef`) and taken from the secret store of the connector. Any status other than 2xx raises the BPMN
+error `HTTP_<status>` on the task, a deterministic configuration error raises `HTTP_CONNECTOR_CONFIG` or
+`HTTP_CONNECTOR_DISABLED`, and a transport failure is left to the engine, which retries it.
+
+| Property | Default | Meaning |
+|---|---|---|
+| `zorrobpm.http-connector.enabled` | `false` | Master switch. `false` rejects every task with the BPMN error `HTTP_CONNECTOR_DISABLED`. |
+| `zorrobpm.http-connector.allowed-hosts` | empty | Comma-separated allowlist of target hosts; an empty value denies all. |
+| `zorrobpm.http-connector.allow-private-networks` | `false` | Whether private and reserved IP ranges may be reached. Outside the dev and test profiles `true` fails the startup. |
+| `zorrobpm.http-connector.secrets.<name>` | | A secret as a JSON object: `{"type":"bearer","token":"…"}`, `{"type":"basic","username":"…","password":"…"}` or `{"type":"apiKey","name":"X-Key","value":"…","in":"header"}`. |
+| `zorrobpm.http-connector.secrets-json` | empty | The same secrets as one JSON object of `{name: secret}`, for names that an environment variable cannot express. |
+| `zorrobpm.http-connector.max-response-bytes` | `1048576` | Hard cap of the response body; a larger body is rejected with a BPMN error. |
+| `zorrobpm.http-connector.max-redirects` | `0` | How many redirects to follow; every hop is validated again. |
+| `zorrobpm.http-connector.default-connection-timeout-seconds` | `20` | Default connect timeout. |
+| `zorrobpm.http-connector.default-read-timeout-seconds` | `20` | Default deadline for the headers, the redirect hops and the body of one exchange. |
+| `zorrobpm.http-connector.max-connection-timeout-seconds` | `120` | Upper cap of the connect timeout. |
+| `zorrobpm.http-connector.max-read-timeout-seconds` | `300` | Upper cap of the read timeout. |
+
+The task inputs are `http.url`, `http.method` (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`), `http.headers`,
+`http.queryParameters`, `http.body`, `http.authType` (`none`, `apiKey`, `basic`, `bearer`), `http.authRef`,
+`http.connectionTimeout` and `http.readTimeout`; a secret passed as a literal is rejected. The result is
+`http.status` (`LONG`), `http.headers` (`JSON`, without `set-cookie`) and `http.body` (`JSON` or `STRING`,
+depending on the Content-Type), which the output mapping of the element writes into process variables.
+
 ## Sentry
 
 The `zorrobpm-ce` application reports errors and traces to [Sentry](https://sentry.io) (SaaS or

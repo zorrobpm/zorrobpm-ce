@@ -27,6 +27,7 @@ MODULES=(
 # Reactor modules that are never published (the executable application).
 EXCLUDED=(
   zorrobpm-ce
+  zorrobpm-http-connector
 )
 
 ROOT_POM="${ROOT_POM:-pom.xml}"

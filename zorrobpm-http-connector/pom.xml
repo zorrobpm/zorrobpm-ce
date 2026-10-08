@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 
     <modelVersion>4.0.0</modelVersion>
 
@@ -12,11 +11,10 @@
     </parent>
 
     <groupId>com.zorrodev.bpm</groupId>
-    <artifactId>zorrobpm</artifactId>
+    <artifactId>zorrobpm-http-connector</artifactId>
     <version>0.8.1-SNAPSHOT</version>
-    <packaging>pom</packaging>
 
-    <name>ZorroBPM</name>
+    <name>zorrobpm-http-connector</name>
     <description>ZorroBPM Community Edition: a lightweight Spring Boot based BPM engine.</description>
     <url>https://zorrobpm.dev</url>
 
@@ -32,52 +30,77 @@
         <developer>
             <id>maratkalibek</id>
             <name>Marat Kalibekov</name>
-            <email>marat@zorrobpm.dev</email>
-            <organization>ZorroBPM</organization>
-            <organizationUrl>https://zorrobpm.dev</organizationUrl>
+            <email>marat@zorrodev.com</email>
+            <organizationUrl>https://zorrodev.com</organizationUrl>
         </developer>
     </developers>
 
-    <modules>
-        <module>zorrobpm-contract</module>
-        <module>zorrobpm-event</module>
-        <module>zorrobpm-client</module>
-        <module>zorrobpm-engine</module>
-        <module>zorrobpm-rest</module>
-        <module>zorrobpm-job-handler-spring-boot-starter</module>
-        <module>zorrobpm-test</module>
-        <module>zorrobpm-exchange</module>
-        <module>zorrobpm-rabbitmq</module>
-        <module>zorrobpm-grpc</module>
-        <module>zorrobpm-http-connector</module>
-        <module>zorrobpm-ce</module>
-    </modules>
+    <properties>
+        <java.version>17</java.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+
+        <!-- The JobHandler SPI, JobDetailModel and ProcessVariable (worker input/output). -->
+        <dependency>
+            <groupId>com.zorrodev.bpm</groupId>
+            <artifactId>zorrobpm-exchange</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.zorrodev.bpm</groupId>
+            <artifactId>zorrobpm-job-handler-spring-boot-starter</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- ActivityService.throwBpmnError: the channel for non-2xx responses and for deterministic
+             configuration errors. The connector runs in the engine application and reports on the
+             service task itself, so it uses the engine API rather than the worker result protocol. -->
+        <dependency>
+            <groupId>com.zorrodev.bpm</groupId>
+            <artifactId>zorrobpm-engine</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>tools.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
 
     <build>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-release-plugin</artifactId>
+                <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
-                    <tagNameFormat>v@{project.version}</tagNameFormat>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </path>
+                    </annotationProcessorPaths>
                 </configuration>
             </plugin>
         </plugins>
     </build>
-
-    <scm>
-        <connection>scm:git:https://github.com/zorrobpm/zorrobpm-ce.git</connection>
-        <developerConnection>scm:git:https://github.com/zorrobpm/zorrobpm-ce.git</developerConnection>
-        <url>https://github.com/zorrobpm/zorrobpm-ce.git</url>
-        <tag>v0.7.18</tag>
-    </scm>
-
-    <distributionManagement>
-        <snapshotRepository>
-            <id>maven.1repo.com</id>
-            <url>https://maven.1repo.com/1repo/snapshots</url>
-        </snapshotRepository>
-    </distributionManagement>
 
     <profiles>
         <profile>
@@ -122,7 +145,7 @@
                         <executions>
                             <execution>
                                 <id>sign-artifacts</id>
-                                <phase>deploy</phase>
+                                <phase>verify</phase>
                                 <goals>
                                     <goal>sign</goal>
                                 </goals>
@@ -151,4 +174,7 @@
         </profile>
     </profiles>
 
+  <scm>
+    <tag>v0.7.18</tag>
+  </scm>
 </project>
