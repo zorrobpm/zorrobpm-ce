@@ -46,9 +46,4 @@ class UserTaskLifecycleEventJsonTest {
         assertThat(json.get("candidateGroups").get(0).asString()).isEqualTo("managers");
         assertThat(json.get("processDefinitionVersion").asInt()).isEqualTo(2);
     }
-
-    @Test
-    void routingKeyIsTheLowerCaseType() {
-        assertThat(UserTaskEventType.UNASSIGNED.routingKey()).isEqualTo("user-task.unassigned");
-    }
 }

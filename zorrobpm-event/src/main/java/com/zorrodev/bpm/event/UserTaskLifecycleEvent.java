@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * The body of a message of the {@code zorrobpm.user-task-events} topic exchange: the state of a user
+ * The body of a message of the {@code zorrobpm.user-task-events} queue: the state of a user
  * task at the moment of its change. Delivery is at-least-once: a consumer deduplicates by
  * {@link #eventId}. Variables are not part of the event.
  */

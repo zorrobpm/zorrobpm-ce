@@ -20,7 +20,9 @@ import java.time.Duration;
 /**
  * Publication of the user task events, on with {@code zorrobpm.events.user-task.enabled=true} whatever
  * the transport of service task jobs. The connection factory and the template are private to the
- * publisher (publisher confirms on), not beans: the application's RabbitMQ beans stay as they are.
+ * publisher (publisher confirms on), not beans: the application's RabbitMQ beans stay as they are. The
+ * queue is declared on the publisher's channel, not as a {@code Queue} bean, so that no other admin
+ * declares it.
  */
 @Configuration
 @ConditionalOnProperty(name = UserTaskEvents.ENABLED_PROPERTY, havingValue = "true")
@@ -44,8 +46,8 @@ public class UserTaskEventsConfiguration implements DisposableBean {
     }
 
     @EventListener(ApplicationReadyEvent.class)
-    void declareExchange(ApplicationReadyEvent event) {
-        event.getApplicationContext().getBean(RabbitUserTaskEventPublisher.class).declareExchange();
+    void declareQueue(ApplicationReadyEvent event) {
+        event.getApplicationContext().getBean(RabbitUserTaskEventPublisher.class).declareQueue();
     }
 
     @Override

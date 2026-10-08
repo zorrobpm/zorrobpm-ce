@@ -15,14 +15,16 @@ import java.util.Date;
 import java.util.List;
 
 /**
- * Publishes user task events to the {@code zorrobpm.user-task-events} topic exchange on a channel of
- * its own with publisher confirms: a batch counts as published only when the broker has confirmed
- * every message of it. The exchange is declared before each batch, so it exists after a broker reset.
+ * Publishes user task events to the durable {@code zorrobpm.user-task-events} queue through the default
+ * exchange, on a channel of its own with publisher confirms: a batch counts as published only when the
+ * broker has confirmed every message of it. The queue is declared before each batch, so it exists after a
+ * broker reset or a deletion: the default exchange would drop a message for a missing queue, confirmed.
  */
 @Slf4j
 public class RabbitUserTaskEventPublisher implements UserTaskEventPublisher {
 
     public static final String USER_TASK_ID_HEADER = "zorrobpm-user-task-id";
+    private static final String DEFAULT_EXCHANGE = "";
 
     private final RabbitOperations rabbitOperations;
     private final Duration confirmTimeout;
@@ -38,26 +40,27 @@ public class RabbitUserTaskEventPublisher implements UserTaskEventPublisher {
             return;
         }
         rabbitOperations.invoke(operations -> {
-            declareExchange(operations);
+            declareQueue(operations);
             for (UserTaskEventMessage message : messages) {
-                operations.send(UserTaskEvents.EXCHANGE, message.routingKey(), toAmqp(message));
+                operations.send(DEFAULT_EXCHANGE, UserTaskEvents.QUEUE, toAmqp(message));
             }
             operations.waitForConfirmsOrDie(confirmTimeout.toMillis());
             return null;
         });
     }
 
-    /** Declares the exchange at once, when the broker is there; a missing broker is reported, not thrown. */
-    public void declareExchange() {
+    /** Declares the queue at once, when the broker is there; a missing broker is reported, not thrown. */
+    public void declareQueue() {
         try {
-            declareExchange(rabbitOperations);
+            declareQueue(rabbitOperations);
         } catch (RuntimeException e) {
-            log.warn("Exchange {} not declared now, it will be on the first publication: {}", UserTaskEvents.EXCHANGE, e.toString());
+            log.warn("Queue {} not declared now, it will be on the first publication: {}", UserTaskEvents.QUEUE, e.toString());
         }
     }
 
-    private static void declareExchange(RabbitOperations operations) {
-        operations.execute(channel -> channel.exchangeDeclare(UserTaskEvents.EXCHANGE, "topic", true));
+    /** Durable, neither exclusive nor auto-deleted, without arguments: as the queues of service task jobs. */
+    private static void declareQueue(RabbitOperations operations) {
+        operations.execute(channel -> channel.queueDeclare(UserTaskEvents.QUEUE, true, false, false, null));
     }
 
     static Message toAmqp(UserTaskEventMessage message) {

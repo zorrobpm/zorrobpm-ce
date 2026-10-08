@@ -12,8 +12,8 @@ public final class UserTaskEvents {
     public static final String ENABLED_PROPERTY = PREFIX + ".enabled";
     /** {@code false} keeps the outbox written but not relayed, for tests. */
     public static final String RELAY_ENABLED_PROPERTY = PREFIX + ".relay-enabled";
-    /** The topic exchange the events are published to. */
-    public static final String EXCHANGE = "zorrobpm.user-task-events";
+    /** The durable queue the engine declares and publishes every event to, through the default exchange. */
+    public static final String QUEUE = "zorrobpm.user-task-events";
 
     private UserTaskEvents() {
     }

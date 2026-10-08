@@ -1,5 +1,6 @@
 package com.zorrodev.bpm.rabbitmq;
 
+import com.rabbitmq.client.Channel;
 import com.zorrodev.bpm.exchange.UserTaskEventMessage;
 import com.zorrodev.bpm.exchange.UserTaskEvents;
 import org.junit.jupiter.api.BeforeEach;
@@ -9,6 +10,7 @@ import org.mockito.InOrder;
 import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageDeliveryMode;
+import org.springframework.amqp.rabbit.core.ChannelCallback;
 import org.springframework.amqp.rabbit.core.RabbitOperations;
 
 import java.nio.charset.StandardCharsets;
@@ -21,12 +23,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -44,22 +48,46 @@ class RabbitUserTaskEventPublisherTest {
     }
 
     @Test
-    void sendsEveryMessageInOrderAndWaitsForTheConfirms() {
-        UserTaskEventMessage created = message("CREATED", "user-task.created");
-        UserTaskEventMessage completed = message("COMPLETED", "user-task.completed");
+    void declaresTheQueueThenSendsEveryMessageToItInOrderAndWaitsForTheConfirms() {
+        UserTaskEventMessage created = message("CREATED");
+        UserTaskEventMessage completed = message("COMPLETED");
 
         publisher.publish(List.of(created, completed));
 
+        ArgumentCaptor<Message> captor = ArgumentCaptor.forClass(Message.class);
         InOrder order = inOrder(channelOperations);
         order.verify(channelOperations).execute(any());
-        order.verify(channelOperations).send(eq(UserTaskEvents.EXCHANGE), eq("user-task.created"), any(Message.class));
-        order.verify(channelOperations).send(eq(UserTaskEvents.EXCHANGE), eq("user-task.completed"), any(Message.class));
+        order.verify(channelOperations, times(2)).send(eq(""), eq(UserTaskEvents.QUEUE), captor.capture());
         order.verify(channelOperations).waitForConfirmsOrDie(3000L);
+        assertThat(captor.getAllValues()).extracting(message -> message.getMessageProperties().getType())
+            .containsExactly("CREATED", "COMPLETED");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void declaresADurableQueueAndNoExchange() throws Exception {
+        Channel channel = mock(Channel.class);
+        when(channelOperations.execute(any())).thenAnswer(invocation ->
+            ((ChannelCallback<Object>) invocation.getArgument(0)).doInRabbit(channel));
+
+        publisher.publish(List.of(message("CREATED")));
+
+        verify(channel).queueDeclare(UserTaskEvents.QUEUE, true, false, false, null);
+        verify(channel, never()).exchangeDeclare(anyString(), anyString(), anyBoolean());
+    }
+
+    @Test
+    void queueNotDeclaredAtStartIsReportedNotThrown() {
+        when(template.execute(any())).thenThrow(new AmqpException("connection refused"));
+
+        publisher.declareQueue();
+
+        verify(template).execute(any());
     }
 
     @Test
     void messageCarriesThePayloadAndTheEventId() {
-        UserTaskEventMessage created = message("CREATED", "user-task.created");
+        UserTaskEventMessage created = message("CREATED");
 
         publisher.publish(List.of(created));
 
@@ -80,7 +108,7 @@ class RabbitUserTaskEventPublisherTest {
     void unconfirmedBatchFails() {
         doThrow(new AmqpException("nack")).when(channelOperations).waitForConfirmsOrDie(anyLong());
 
-        assertThatThrownBy(() -> publisher.publish(List.of(message("CREATED", "user-task.created"))))
+        assertThatThrownBy(() -> publisher.publish(List.of(message("CREATED"))))
             .isInstanceOf(AmqpException.class);
     }
 
@@ -91,9 +119,9 @@ class RabbitUserTaskEventPublisherTest {
         verify(template, never()).invoke(any());
     }
 
-    private static UserTaskEventMessage message(String type, String routingKey) {
+    private static UserTaskEventMessage message(String type) {
         UUID eventId = UUID.randomUUID();
-        return new UserTaskEventMessage(eventId, type, routingKey, UUID.randomUUID(), Instant.parse("2026-10-02T10:15:30Z"),
+        return new UserTaskEventMessage(eventId, type, UUID.randomUUID(), Instant.parse("2026-10-02T10:15:30Z"),
             "{\"eventId\":\"" + eventId + "\",\"type\":\"" + type + "\",\"name\":\"Согласовать\"}");
     }
 }
