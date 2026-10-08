@@ -22,29 +22,48 @@ listened to.
 Only changes made while the flag is on produce events. Events still waiting when the flag is turned off stay
 in the database and are published once it is turned on again.
 
-## Exchange and routing keys
+## Queue
 
-The engine declares the durable topic exchange `zorrobpm.user-task-events` and no queues: bind your own.
+The engine declares the durable queue `zorrobpm.user-task-events` at start, when the broker is there, and
+again before each batch it publishes, so the queue comes back after a broker reset or a deletion. Every event
+of every type goes to this queue through the default exchange: there is no exchange and no routing key to
+bind. Events wait in the queue until a consumer reads them, also when no consumer has connected yet.
 
-| Event | Routing key | When |
-|---|---|---|
-| `CREATED` | `user-task.created` | A user task is created, including each task of a multi-instance |
-| `ASSIGNED` | `user-task.assigned` | An open task without an assignee is claimed |
-| `UNASSIGNED` | `user-task.unassigned` | The assignee of an open task is removed (unclaim) |
-| `COMPLETED` | `user-task.completed` | An open task is completed |
-| `CANCELED` | `user-task.canceled` | The engine ends an open task without completion: an interrupting boundary timer or BPMN error, a multi-instance ending early or getting an incident, an interrupted call activity |
+| Event | When |
+|---|---|
+| `CREATED` | A user task is created, including each task of a multi-instance |
+| `ASSIGNED` | An open task without an assignee is claimed |
+| `UNASSIGNED` | The assignee of an open task is removed (unclaim) |
+| `COMPLETED` | An open task is completed |
+| `CANCELED` | The engine ends an open task without completion: an interrupting boundary timer or BPMN error, a multi-instance ending early or getting an incident, an interrupted call activity |
 
 A rejected operation (claiming a task taken by someone else, a completion rejected by the output mapping)
 produces no event. A task assigned in the model gets `CREATED` with the assignee and no `ASSIGNED`.
 
-Binding a queue to every event, with `rabbitmqadmin`:
+- **Picking types.** To handle only some events, read the AMQP `type` property of the message or the `type`
+  field of the body and acknowledge the rest.
+- **Growth.** The queue is not limited: read it, or turn the events off, so that it does not grow forever.
+- **Several consumers.** Consumers of the one queue share its messages (competing consumers): each message
+  goes to one of them, and the events of one task may then be handled out of order. For the order per task
+  read the queue with a single consumer. To give the events to several independent systems, read the queue
+  once and pass them on, for example with a shovel to an exchange of your own.
+- **Declared by the engine.** Do not create the queue with other arguments (a quorum queue, a TTL, a length
+  limit): the declaration of the engine then fails and the events wait in the database, with a warning in
+  the log on each round.
 
-```sh
-rabbitmqadmin declare queue name=notifications durable=true
-rabbitmqadmin declare binding source=zorrobpm.user-task-events destination=notifications routing_key='user-task.#'
-```
+## Moving from the topic exchange
 
-Or only completions: `routing_key=user-task.completed`.
+Before this version the engine published to the topic exchange `zorrobpm.user-task-events` with the routing
+keys `user-task.<type>` and declared no queue. Now it neither declares nor publishes to that exchange, and it
+does not delete it or the queues bound to it.
+
+1. Update the engine. New events go to the queue `zorrobpm.user-task-events` only.
+2. Read what is left in your own queues bound to the exchange, then switch the consumers to the queue
+   `zorrobpm.user-task-events`, picking types by `type` instead of the routing key.
+3. Delete your old queues and the exchange `zorrobpm.user-task-events` by hand.
+
+To roll back, run the former engine version: it publishes to the exchange again, and the events left in the
+queue `zorrobpm.user-task-events` are read by hand.
 
 ## Message
 
@@ -92,6 +111,7 @@ Java consumers can read the body into `com.zorrodev.bpm.event.UserTaskLifecycleE
   down, the engine keeps working and the events wait in the database until it is back, also across restarts.
   The same event may arrive more than once, always with the same `eventId`: deduplicate by it.
 - **Order per task.** The events of one task are published in the order of its changes, also with several
-  engine nodes and after a failed publication. There is no order between the events of different tasks.
+  engine nodes and after a failed publication, and a single consumer of the queue receives them in this
+  order. There is no order between the events of different tasks.
 - **Retention.** While the broker is down the waiting events are not limited; each failed round is logged as
   a warning.

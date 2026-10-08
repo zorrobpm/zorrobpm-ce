@@ -96,9 +96,9 @@ Add `-U` to Maven (or `--refresh-dependencies` to Gradle) to pick up a newer sna
 ## User task events
 
 The engine can publish the creation, assignment, completion and cancellation of user tasks to the RabbitMQ
-topic exchange `zorrobpm.user-task-events` (off by default, `zorrobpm.events.user-task.enabled=true`).
-See [docs/user-task-events.md](docs/user-task-events.md) for the routing keys, the message format and the
-delivery guarantees.
+queue `zorrobpm.user-task-events`, which it declares itself (off by default,
+`zorrobpm.events.user-task.enabled=true`). See [docs/user-task-events.md](docs/user-task-events.md) for the
+event types, the message format, the delivery guarantees and the move from the former topic exchange.
 
 ## HTTP connector
 
