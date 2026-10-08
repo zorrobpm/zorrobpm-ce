@@ -121,8 +121,8 @@ Sentry receives:
 Refusals the API makes on purpose (404, 409, 400 on a rejected query and other 4xx) are not reported. An
 incoming `sentry-trace` header continues the caller's trace.
 
-No personal data is sent: no user, IP address, cookies, `Authorization` header, request or response bodies,
-process variables. Turning on "Prevent Storing of IP Addresses" in the Sentry project settings is still
+No personal data is sent: no user, IP address, cookies, `Authorization` header, query strings (the tasklist
+passes the person's IIN and groups in them), request or response bodies, process variables. Turning on "Prevent Storing of IP Addresses" in the Sentry project settings is still
 recommended. Unreachable Sentry does not affect request processing.
 
 ## For maintainers
