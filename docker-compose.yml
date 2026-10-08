@@ -59,7 +59,7 @@ services:
       # rabbitmq (default) or grpc: workers then connect to port 9090 instead of RabbitMQ.
       ZORROBPM_TRANSPORT: ${ZORROBPM_TRANSPORT:-rabbitmq}
       ZORROBPM_GRPC_PORT: 9090
-      # true publishes user task events to the zorrobpm.user-task-events exchange (docs/user-task-events.md).
+      # true publishes user task events to the zorrobpm.user-task-events queue (docs/user-task-events.md).
       ZORROBPM_EVENTS_USER_TASK_ENABLED: ${ZORROBPM_EVENTS_USER_TASK_ENABLED:-false}
       JAVA_OPTS: ${JAVA_OPTS:-}
     volumes:

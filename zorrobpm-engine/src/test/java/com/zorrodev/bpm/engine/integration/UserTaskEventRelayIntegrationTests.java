@@ -71,8 +71,8 @@ public class UserTaskEventRelayIntegrationTests {
         assertThat(relay.relay()).isEqualTo(1);
         assertThat(relay.relay()).isZero();
 
-        assertThat(published).extracting(UserTaskEventMessage::routingKey)
-            .containsExactly("user-task.created", "user-task.assigned", "user-task.completed");
+        assertThat(published).extracting(UserTaskEventMessage::type)
+            .containsExactly("CREATED", "ASSIGNED", "COMPLETED");
         assertThat(published).allMatch(m -> taskId.equals(m.userTaskId()));
         assertThat(published.get(0).payload()).contains("\"type\":\"CREATED\"");
         assertThat(outboxRepository.findAll()).isEmpty();

@@ -4,7 +4,6 @@ import com.zorrodev.bpm.engine.entity.UserTaskEventOutboxEntity;
 import com.zorrodev.bpm.engine.entity.UserTaskEventRelayLockEntity;
 import com.zorrodev.bpm.engine.repository.UserTaskEventOutboxRepository;
 import com.zorrodev.bpm.engine.repository.UserTaskEventRelayLockRepository;
-import com.zorrodev.bpm.event.UserTaskEventType;
 import com.zorrodev.bpm.exchange.UserTaskEventMessage;
 import com.zorrodev.bpm.exchange.UserTaskEventPublisher;
 import com.zorrodev.bpm.exchange.UserTaskEvents;
@@ -108,7 +107,7 @@ public class UserTaskEventRelay {
     }
 
     static UserTaskEventMessage toMessage(UserTaskEventOutboxEntity row) {
-        return new UserTaskEventMessage(row.getEventId(), row.getEventType(),
-            UserTaskEventType.valueOf(row.getEventType()).routingKey(), row.getUserTaskId(), row.getCreatedAt(), row.getPayload());
+        return new UserTaskEventMessage(row.getEventId(), row.getEventType(), row.getUserTaskId(), row.getCreatedAt(),
+            row.getPayload());
     }
 }
